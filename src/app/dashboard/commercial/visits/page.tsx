@@ -1,0 +1,842 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useToast } from "@/components/ui/ToastProvider";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+
+type Visit = {
+  id: string;
+  scheduledAt: string;
+  status: "PLANNED" | "DONE" | "CANCELED";
+  note?: string | null;
+  managerId?: string | null;
+  client: { name: string };
+};
+
+type Client = {
+  id: string;
+  name: string;
+};
+
+export default function CommercialVisitsPage() {
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [completionSubmitting, setCompletionSubmitting] = useState(false);
+
+  const [form, setForm] = useState({
+    clientId: "",
+    useNewClient: false,
+    clientData: {
+      name: "",
+      matBroj: "",
+      pdvBroj: "",
+      address: "",
+      city: "",
+      phone: "",
+      email: "",
+      contactPerson: "",
+      note: "",
+    },
+    date: new Date().toISOString().slice(0, 10),
+    time: new Date().toTimeString().slice(0, 5),
+    contactPersonDuringVisit: "",
+    note: "",
+  });
+
+  const [completionForm, setCompletionForm] = useState({
+    contactPerson: "",
+    note: "",
+  });
+
+  const load = async () => {
+    setLoading(true);
+    const from = new Date();
+    from.setDate(from.getDate() - 7);
+    const to = new Date();
+    to.setDate(to.getDate() + 30);
+    const [visitsRes, clientsRes] = await Promise.all([
+      fetch(
+        `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`
+      ),
+      fetch("/api/clients"),
+    ]);
+    const [visitsData, clientsData] = await Promise.all([
+      visitsRes.json(),
+      clientsRes.json(),
+    ]);
+    setVisits(visitsData);
+    setClients(clientsData);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleCompleteClick = (visit: Visit) => {
+    // Provjeri da li je posjeta dodijeljena od managera
+    if (visit.managerId) {
+      // Provjeri da li je vrijeme posjete prošlo (ili danas)
+      const scheduledDate = new Date(visit.scheduledAt);
+      const now = new Date();
+      scheduledDate.setHours(0, 0, 0, 0);
+      now.setHours(0, 0, 0, 0);
+
+      if (scheduledDate <= now) {
+        setSelectedVisit(visit);
+        setCompletionForm({
+          contactPerson: "",
+          note: "",
+        });
+        setCompletionModalOpen(true);
+        return;
+      }
+    }
+
+    // Ako nije od managera ili vrijeme nije prošlo, direktno označi kao završeno
+    updateStatus(visit.id, "DONE");
+  };
+
+  const updateStatus = async (id: string, status: Visit["status"]) => {
+    const res = await fetch("/api/visits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    });
+    if (res.ok) await load();
+  };
+
+  const onCompleteVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVisit) return;
+
+    setCompletionSubmitting(true);
+
+    // Kombinuj kontakt osobu sa napomenom
+    let finalNote = completionForm.note.trim();
+    if (completionForm.contactPerson.trim()) {
+      const contactPart = `Kontakt osoba: ${completionForm.contactPerson.trim()}`;
+      finalNote = finalNote
+        ? `${contactPart}\n\n${finalNote}`
+        : contactPart;
+    }
+
+    const res = await fetch("/api/visits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selectedVisit.id,
+        status: "DONE",
+        note: finalNote || undefined,
+      }),
+    });
+
+    setCompletionSubmitting(false);
+
+    if (res.ok) {
+      setCompletionModalOpen(false);
+      setSelectedVisit(null);
+      setCompletionForm({ contactPerson: "", note: "" });
+      await load();
+    } else {
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
+    }
+  };
+
+  const onCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!form.useNewClient && !form.clientId) {
+      showToast("Odaberi postojećeg klijenta ili kreiraj novog.", "warning");
+      return;
+    }
+
+    if (form.useNewClient) {
+      if (!form.clientData.name.trim()) {
+        showToast("Ime apoteke je obavezno.", "warning");
+        return;
+      }
+      if (!form.clientData.matBroj.trim()) {
+        showToast("ID broj kupca (MAT_BROJ) je obavezan.", "warning");
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    const scheduledAt = new Date(`${form.date}T${form.time}:00`);
+
+    let finalNote = form.note.trim();
+    if (form.contactPersonDuringVisit.trim()) {
+      const contactPart = `Kontakt osoba: ${form.contactPersonDuringVisit.trim()}`;
+      finalNote = finalNote
+        ? `${contactPart}\n\n${finalNote}`
+        : contactPart;
+    }
+
+    const res = await fetch("/api/visits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: form.useNewClient ? undefined : form.clientId,
+        clientData: form.useNewClient ? form.clientData : undefined,
+        scheduledAt: scheduledAt.toISOString(),
+        note: finalNote || undefined,
+      }),
+    });
+
+    setSubmitting(false);
+
+    if (res.ok) {
+      setModalOpen(false);
+      setForm({
+        clientId: "",
+        useNewClient: false,
+        clientData: {
+          name: "",
+          matBroj: "",
+          pdvBroj: "",
+          address: "",
+          city: "",
+          phone: "",
+          email: "",
+          contactPerson: "",
+          note: "",
+        },
+        date: new Date().toISOString().slice(0, 10),
+        time: new Date().toTimeString().slice(0, 5),
+        contactPersonDuringVisit: "",
+        note: "",
+      });
+      await load();
+    } else {
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
+    }
+  };
+
+  const statusLabel = (s: Visit["status"]) =>
+    s === "PLANNED" ? "Planirano" : s === "DONE" ? "Završeno" : "Otkazano";
+
+  const statusColor = (s: Visit["status"]) => {
+    switch (s) {
+      case "PLANNED":
+        return "bg-amber-100 text-amber-700";
+      case "DONE":
+        return "bg-emerald-100 text-emerald-700";
+      case "CANCELED":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-slate-100 text-slate-600";
+    }
+  };
+
+  return (
+    <div className="space-y-4 md:space-y-6 p-4 md:p-6">
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold truncate">Moje posjete</h1>
+          <p className="text-sm text-slate-500">
+            Pregled planiranih i završenih posjeta.
+          </p>
+        </div>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="w-full sm:w-auto rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition shadow-sm"
+        >
+          + Dodaj posjetu
+        </button>
+      </header>
+
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-4">
+          <p className="text-sm font-medium text-slate-700">
+            Posjete u posljednjih 7 i narednih 30 dana
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-12">
+              <LoadingSpinner size="md" />
+            </div>
+          ) : visits.length === 0 ? (
+            <div className="p-6 text-sm text-slate-500">
+              Trenutno nema posjeta u ovom periodu.
+            </div>
+          ) : (
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3 p-4">
+                {visits.map((v) => (
+                  <div
+                    key={v.id}
+                    className="rounded-lg border border-slate-200 bg-white p-4 space-y-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-slate-900 truncate">
+                          {v.client.name}
+                        </h3>
+                        {v.managerId && (
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Dodijeljena od managera
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`ml-2 flex-shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(
+                          v.status
+                        )}`}
+                      >
+                        {statusLabel(v.status)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">Datum:</span>
+                        <span className="font-medium">
+                          {new Date(v.scheduledAt).toLocaleDateString("bs-BA", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">Vrijeme:</span>
+                        <span className="font-medium">
+                          {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {v.note && (
+                        <div>
+                          <span className="text-slate-500">Napomena: </span>
+                          <span className="text-slate-600">{v.note}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      {v.status !== "DONE" && (
+                        <button
+                          className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+                          onClick={() => handleCompleteClick(v)}
+                        >
+                          Završeno
+                        </button>
+                      )}
+                      {v.status !== "CANCELED" && (
+                        <button
+                          className="flex-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition"
+                          onClick={() => updateStatus(v.id, "CANCELED")}
+                        >
+                          Otkaži
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <table className="min-w-full text-sm hidden md:table">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Datum / vrijeme</th>
+                    <th className="px-4 py-3 text-left">Klijent</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Napomena</th>
+                    <th className="px-4 py-3 text-right">Akcije</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visits.map((v) => (
+                    <tr
+                      key={v.id}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="font-medium">
+                          {new Date(v.scheduledAt).toLocaleDateString("bs-BA", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{v.client.name}</div>
+                        {v.managerId && (
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            Dodijeljena od managera
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor(
+                            v.status
+                          )}`}
+                        >
+                          {statusLabel(v.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 max-w-xs">
+                        {v.note ? (
+                          <div className="text-slate-600 text-xs line-clamp-2">
+                            {v.note}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          {v.status !== "DONE" && (
+                            <button
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
+                              onClick={() => handleCompleteClick(v)}
+                            >
+                              Završeno
+                            </button>
+                          )}
+                          {v.status !== "CANCELED" && (
+                            <button
+                              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition"
+                              onClick={() => updateStatus(v.id, "CANCELED")}
+                            >
+                              Otkaži
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Modal za završavanje posjete (samo za posjete od managera) */}
+      {completionModalOpen && selectedVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Završi posjetu</h2>
+                  <p className="text-xs text-slate-500">
+                    {selectedVisit.client.name} -{" "}
+                    {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA")}
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setCompletionModalOpen(false);
+                    setSelectedVisit(null);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={onCompleteVisit} className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-slate-600">
+                    S kojom osobom ste razgovarali *
+                  </label>
+                  <input
+                    type="text"
+                    value={completionForm.contactPerson}
+                    onChange={(e) =>
+                      setCompletionForm((f) => ({
+                        ...f,
+                        contactPerson: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Ime i prezime..."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-slate-600">
+                    Napomena o posjeti
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={completionForm.note}
+                    onChange={(e) =>
+                      setCompletionForm((f) => ({
+                        ...f,
+                        note: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Detalji razgovora, rezultati posjete..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => {
+                      setCompletionModalOpen(false);
+                      setSelectedVisit(null);
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={completionSubmitting}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+                  >
+                    {completionSubmitting ? "Spremam..." : "Završi posjetu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal za kreiranje posjete */}
+      {modalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 sticky top-0 bg-white">
+                <div>
+                  <h2 className="text-lg font-semibold">Nova posjeta</h2>
+                  <p className="text-xs text-slate-500">
+                    Odaberi postojećeg klijenta ili kreiraj novog.
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => setModalOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={onCreate} className="px-6 py-5 space-y-4">
+                {/* Switch: postojeći vs novi klijent */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useNew"
+                    checked={form.useNewClient}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, useNewClient: e.target.checked }))
+                    }
+                    className="rounded"
+                  />
+                  <label htmlFor="useNew" className="text-sm font-medium">
+                    Kreiraj novog klijenta (apoteku)
+                  </label>
+                </div>
+
+                {form.useNewClient ? (
+                  /* Forma za novog klijenta */
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-slate-600">
+                        Ime apoteke *
+                      </label>
+                      <input
+                        value={form.clientData.name}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            clientData: { ...f.clientData, name: e.target.value },
+                          }))
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          ID broj kupca (MAT_BROJ) *
+                        </label>
+                        <input
+                          value={form.clientData.matBroj}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: { ...f.clientData, matBroj: e.target.value },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                          required
+                          placeholder="Unesi MAT_BROJ"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          PDV broj (opciono)
+                        </label>
+                        <input
+                          value={form.clientData.pdvBroj}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: { ...f.clientData, pdvBroj: e.target.value },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                          placeholder="Unesi PDV broj ako postoji"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          Adresa
+                        </label>
+                        <input
+                          value={form.clientData.address}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: {
+                                ...f.clientData,
+                                address: e.target.value,
+                              },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          Grad
+                        </label>
+                        <input
+                          value={form.clientData.city}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: { ...f.clientData, city: e.target.value },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          Kontakt telefon
+                        </label>
+                        <input
+                          value={form.clientData.phone}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: {
+                                ...f.clientData,
+                                phone: e.target.value,
+                              },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={form.clientData.email}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              clientData: {
+                                ...f.clientData,
+                                email: e.target.value,
+                              },
+                            }))
+                          }
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-600">
+                        Odgovorna osoba
+                      </label>
+                      <input
+                        value={form.clientData.contactPerson}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            clientData: {
+                              ...f.clientData,
+                              contactPerson: e.target.value,
+                            },
+                          }))
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-slate-600">
+                        Napomena (za klijenta)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={form.clientData.note}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            clientData: {
+                              ...f.clientData,
+                              note: e.target.value,
+                            },
+                          }))
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  /* Select postojećeg klijenta */
+                  <div>
+                    <label className="text-sm font-medium text-slate-600">
+                      Odaberi klijenta (apoteku) *
+                    </label>
+                    <select
+                      value={form.clientId}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, clientId: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      required
+                    >
+                      <option value="">Odaberi...</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Datum i vrijeme */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-slate-600">
+                      Datum posjete *
+                    </label>
+                    <input
+                      type="date"
+                      value={form.date}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, date: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-600">
+                      Vrijeme *
+                    </label>
+                    <input
+                      type="time"
+                      value={form.time}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, time: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Kontakt osoba tokom posjete */}
+                <div>
+                  <label className="text-sm font-medium text-slate-600">
+                    S kojom osobom se razgovaralo
+                  </label>
+                  <input
+                    type="text"
+                    value={form.contactPersonDuringVisit}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        contactPersonDuringVisit: e.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Ime i prezime osobe s kojom ste razgovarali..."
+                  />
+                </div>
+
+                {/* Napomena za posjetu */}
+                <div>
+                  <label className="text-sm font-medium text-slate-600">
+                    Napomena za posjetu
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={form.note}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, note: e.target.value }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Kratka napomena o cilju posjete..."
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => setModalOpen(false)}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+                  >
+                    {submitting ? "Spremam..." : "Dodaj posjetu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function showToast(arg0: string, arg1: string) {
+  throw new Error("Function not implemented.");
+}
