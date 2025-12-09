@@ -4,11 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "prisma generate && next build",
+    "start": "node server.ts",
+    "postinstall": "prisma generate",
     "lint": "eslint",
     "tailwind:dev": "tailwindcss -i ./src/styles/tailwind.css -o ./src/app/globals.css --watch",
     "tailwind:build": "tailwindcss -i ./src/styles/tailwind.css -o ./src/app/globals.css"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
