@@ -74,16 +74,8 @@ export async function syncProducts() {
           continue;
         }
 
-        // Provjeri da li brand postoji, ako ne, kreiraj ga
-        let brandId: string | null = null;
-        if (erpProduct.Brand) {
-          const brand = await prisma.brand.upsert({
-            where: { name: erpProduct.Brand },
-            update: {},
-            create: { name: erpProduct.Brand },
-          });
-          brandId = brand.id;
-        }
+        
+       
 
         // Upsert proizvod (update ako postoji po SKU, create ako ne postoji)
         const product = await prisma.product.upsert({
@@ -93,8 +85,6 @@ export async function syncProducts() {
             catalogNumber: erpProduct.CatalogNumber || null,
             stock: Math.max(0, Number(erpProduct.Stock) || 0),
             price: erpProduct.Price ? Number(erpProduct.Price) : null,
-            description: erpProduct.Description || null,
-            brandId: brandId,
             updatedAt: new Date(),
           },
           create: {
@@ -103,8 +93,6 @@ export async function syncProducts() {
             catalogNumber: erpProduct.CatalogNumber || null,
             stock: Math.max(0, Number(erpProduct.Stock) || 0),
             price: erpProduct.Price ? Number(erpProduct.Price) : null,
-            description: erpProduct.Description || null,
-            brandId: brandId,
           },
         });
 

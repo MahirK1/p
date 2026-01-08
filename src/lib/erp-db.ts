@@ -56,6 +56,4 @@ export type ErpProduct = {
   CatalogNumber?: string | null;
   Stock: number;
   Price?: number | null;
-  Description?: string | null;
-  Brand?: string | null;
 };
