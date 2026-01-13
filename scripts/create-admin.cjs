@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const email = "web@italgroup.ba";
-  const password = "Ital123"; // promijeni poslije logina
+  const password = "It@l2026++"; // promijeni poslije logina
   const name = "Mahir";
 
   const hashed = await bcrypt.hash(password, 10);

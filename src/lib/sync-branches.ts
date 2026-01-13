@@ -1,42 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { getErpConnection } from "@/lib/erp-db";
-import sql from "mssql";
+import { getErpBranches, type ErpBranch } from "@/lib/erp-db";
 
 export async function syncBranches() {
-  console.log("🔄 Počinje sinkronizacija lokacija/podružnica iz ERP baze...");
-
-  let pool: sql.ConnectionPool | null = null;
+  console.log("🔄 Počinje sinkronizacija lokacija/podružnica iz ERP baze preko API Gateway-a...");
 
   try {
-    pool = await getErpConnection();
+    console.log("📡 Povezivanje sa API Gateway serverom...");
 
-    // SQL query za lokacije - samo aktivne (Skriven = 0 ili NULL)
-    const query = `
-      SELECT 
-        rj.Id AS ERP_ID,
-        rj.PartnerId AS PartnerERP_ID,
-        rj.Sifra AS Code,
-        rj.Naziv AS Name,
-        rj.IDBroj AS IdBroj,
-        rj.Adresa AS Address,
-        rj.Mjesto AS City,
-        rj.Telefon AS Phone,
-        rj.Email AS Email,
-        rj.KontaktOsoba AS ContactPerson,
-        rj.PTTBroj AS ZipCode
-      FROM 
-        [ITAL_REGISTRI_IMELBISR_].[dbo].[RjPartnera] rj
-      WHERE 
-        (rj.Skriven = 0 OR rj.Skriven IS NULL)
-      ORDER BY 
-        rj.PartnerId, rj.Naziv
-    `;
+    // Dohvati podružnice preko API Gateway-a
+    const erpBranches: ErpBranch[] = await getErpBranches();
 
-    console.log("📝 Izvršavanje SQL query-ja za lokacije...");
-    const result = await pool.request().query(query);
-    const erpBranches = result.recordset;
-
-    console.log(`📦 Pronađeno ${erpBranches.length} lokacija u ERP bazi`);
+    console.log(`📦 Pronađeno ${erpBranches.length} lokacija u ERP bazi preko API Gateway-a`);
 
     let created = 0;
     let updated = 0;

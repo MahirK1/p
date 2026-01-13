@@ -1,14 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { getErpConnection, type ErpProduct } from "@/lib/erp-db";
-import sql from "mssql";
+import { getErpProducts, type ErpProduct } from "@/lib/erp-db";
 
 export async function syncProducts() {
-  console.log("🔄 Počinje sinkronizacija proizvoda iz ERP baze...");
+  console.log("🔄 Počinje sinkronizacija proizvoda iz ERP baze preko API Gateway-a...");
 
-  let pool: sql.ConnectionPool | null = null;
-  
   try {
-    // Učitaj naziv tabele iz settings-a
+    // Učitaj naziv tabele iz settings-a (za referencu)
     const tableSetting = await prisma.appSetting.findUnique({
       where: { key: "erp_lager_table" },
     });
@@ -17,40 +14,12 @@ export async function syncProducts() {
     const tableName = tableSetting?.value || "ITAL_IMELBIS_2025";
     
     console.log(`📊 Koristi se tabela: ${tableName}`);
+    console.log("📡 Povezivanje sa API Gateway serverom...");
 
-    // Konektuj se na ERP bazu
-    pool = await getErpConnection();
+    // Dohvati proizvode preko API Gateway-a
+    const erpProducts: ErpProduct[] = await getErpProducts();
 
-    // SQL query - dinamički naziv tabele
-    const query = `
-      SELECT 
-        Lager.ArtikliId AS product_id,
-        Lager.SkladistaId AS Skladiste, 
-        Artikli.ArtikalSifra AS SKU, 
-        Lager.Naziv AS Name,  
-        SUM([Zaliha]) AS Stock, 
-        CONVERT(DECIMAL(10,2), Cjenovnik.CjenovnikCijena) AS Price,
-        Artikli.ArtikalKatalog AS CatalogNumber
-      FROM 
-        [${tableName}].[dbo].[Lager]  
-      LEFT JOIN 
-        [ITAL_REGISTRI_IMELBIS_].[dbo].[Cjenovnik] ON Lager.ArtikliId = Cjenovnik.ArtikliId 
-      LEFT JOIN 
-        [ITAL_REGISTRI_IMELBIS_].[dbo].[Artikli] ON Lager.ArtikliId = Artikli.Id 
-      WHERE 
-        Cjenovnik.CjenovnikVrstaId = 184
-        AND Lager.SkladistaId = 3 
-      GROUP BY 
-        Lager.ArtikliId, Lager.Naziv, Cjenovnik.CjenovnikCijena, Artikli.ArtikalSifra, Artikli.ArtikalKatalog, Lager.SkladistaId 
-      ORDER BY 
-        Lager.ArtikliId
-    `;
-
-    console.log("📝 Izvršavanje SQL query-ja...");
-    const result = await pool.request().query(query);
-    const erpProducts: ErpProduct[] = result.recordset;
-
-    console.log(`📦 Pronađeno ${erpProducts.length} proizvoda u ERP bazi`);
+    console.log(`📦 Pronađeno ${erpProducts.length} proizvoda u ERP bazi preko API Gateway-a`);
 
     if (erpProducts.length === 0) {
       console.warn("⚠️ Nije pronađen nijedan proizvod u ERP bazi!");

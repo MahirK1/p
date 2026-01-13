@@ -1,8 +1,21 @@
 import type { NextApiRequest } from "next";
-import type { NextApiResponseServerIO } from "@/types/next.d.ts";
 import { Server as IOServer } from "socket.io";
 import { prisma } from "@/lib/prisma";
 import { sendPushNotificationToMultipleUsers } from "@/lib/push-notifications";
+
+// Define NextApiResponseServerIO type inline to avoid import problems
+import type { Server as HTTPServer } from "http";
+import type { Socket as NetSocket } from "net";
+import type { Server as IOSocketServer } from "socket.io";
+import type { NextApiResponse } from "next";
+
+export type NextApiResponseServerIO = NextApiResponse & {
+  socket: NetSocket & {
+    server: HTTPServer & {
+      io: IOSocketServer;
+    };
+  };
+};
 
 export const config = {
   api: {

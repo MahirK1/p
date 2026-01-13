@@ -28,6 +28,10 @@ export default function AdminBrandsPage() {
     name: "",
   });
 
+
+  const { showToast } = useToast();
+
+  
   const filteredBrands = useMemo(() => {
     if (!search.trim()) return brands;
     const term = search.toLowerCase();

@@ -176,14 +176,23 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY="VAŠ_PUBLIC_KEY"
 VAPID_PRIVATE_KEY="VAŠ_PRIVATE_KEY"
 VAPID_SUBJECT="mailto:admin@italgroup.ba"
 
-# ERP Database Connection - Opciono (ako koristite ERP integraciju)
-ERP_DB_SERVER=192.168.0.87\SQLEXPRESS
-ERP_DB_PORT=1433
-ERP_DB_NAME=YourERPDatabase
-ERP_DB_USER=erp_user
-ERP_DB_PASSWORD=erp_password
-ERP_DB_ENCRYPT=false
-ERP_DB_TRUST_CERT=true
+# API Gateway Configuration (Preporučeno - za siguran pristup lokalnoj ERP bazi)
+# Ako koristite API Gateway server na lokalnoj mreži:
+ERP_API_GATEWAY_URL=http://100.x.x.x:3001  # VPN IP adresa API Gateway servera
+ERP_API_KEY=your-secure-api-key-here
+ERP_JWT_SECRET=your-secure-jwt-secret-here  # Opciono, ako koristiš custom JWT secret
+
+# ILI direktna ERP Database Connection (Opciono - samo ako ERP baza nije na lokalnoj mreži)
+# ERP_DB_SERVER=192.168.0.87\SQLEXPRESS
+# ERP_DB_PORT=1434
+# ERP_DB_NAME=YourERPDatabase
+# ERP_DB_USER=erp_user
+# ERP_DB_PASSWORD=erp_password
+# ERP_DB_ENCRYPT=false
+# ERP_DB_TRUST_CERT=true
+
+# Napomena: Za pristup lokalnoj ERP bazi sa cloud servera, preporučeno je koristiti API Gateway
+# pristup preko VPN-a. Detaljne instrukcije u API_GATEWAY_SETUP.md
 ```
 
 **VAŽNO**: 
@@ -261,7 +270,15 @@ module.exports = {
 };
 ```
 
-### 6.2 Pokretanje sa PM2
+### 6.2 Instalacija tsx (TypeScript Executor)
+Pošto `server.ts` je TypeScript fajl, Node.js ne može direktno da ga pokrene. Koristimo `tsx` za pokretanje TypeScript fajlova:
+
+```bash
+cd /var/www/portalv2
+npm install tsx
+```
+
+### 6.3 Pokretanje sa PM2
 ```bash
 # Kreiranje logs direktorijuma
 mkdir -p logs
@@ -269,7 +286,7 @@ mkdir -p logs
 # Pokretanje aplikacije
 pm2 start ecosystem.config.js
 # ili jednostavno:
-pm2 start npm --name "portalv2" -- start
+pm2 start tsx --name "portalv2" -- server.ts
 
 # Provera statusa
 pm2 status
@@ -282,7 +299,7 @@ pm2 save
 pm2 startup
 ```
 
-**Napomena**: `server.ts` je TypeScript fajl, ali Next.js build proces ga automatski kompajlira. PM2 pokreće aplikaciju preko `npm start` komande koja koristi već kompajlirani kod.
+**Napomena**: `server.ts` je TypeScript fajl, pa koristimo `tsx` za pokretanje direktno bez kompilacije. `tsx` je brz TypeScript executor koji je idealan za production.
 
 ---
 

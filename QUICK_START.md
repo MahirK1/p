@@ -45,7 +45,7 @@ cd /var/www/portalv2
 git clone https://github.com/VAŠ_REPO/PortalV2.git .
 # ILI upload preko SCP sa lokalnog računara
 
-# Instalacija dependencies
+# Instalacija dependencies (uključuje tsx za TypeScript execution)
 npm install
 ```
 
@@ -76,7 +76,7 @@ npm run build
 
 ### 5️⃣ Pokretanje
 ```bash
-# PM2
+# PM2 (tsx je već instaliran preko npm install)
 pm2 start ecosystem.config.js
 pm2 save
 pm2 startup

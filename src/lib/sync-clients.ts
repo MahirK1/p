@@ -1,42 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { getErpConnection } from "@/lib/erp-db";
-import sql from "mssql";
+import { getErpClients, type ErpClient } from "@/lib/erp-db";
 
 export async function syncClients() {
-  console.log("🔄 Počinje sinkronizacija klijenata iz ERP baze...");
-
-  let pool: sql.ConnectionPool | null = null;
+  console.log("🔄 Počinje sinkronizacija klijenata iz ERP baze preko API Gateway-a...");
 
   try {
-    pool = await getErpConnection();
+    console.log("📡 Povezivanje sa API Gateway serverom...");
 
-    // SQL query za klijente - samo aktivni (Neaktivan = 0 ili NULL)
-    const query = `
-      SELECT 
-        Id AS ERP_ID,
-        SIFRA AS Code,
-        IME AS Name,
-        ADRESA AS Address,
-        SJEDISTE AS City,
-        Telefon AS Phone,
-        EMAIL AS Email,
-        MAT_BROJ AS MatBroj,
-        COALESCE(EUPDVBroj, CASE WHEN PDV = 1 THEN MAT_BROJ ELSE NULL END) AS PdvBroj,
-        KOMENTAR AS Note
-      FROM 
-        [ITAL_REGISTRI_IMELBISR_].[dbo].[Partner]
-      WHERE 
-        (Neaktivan = 0 OR Neaktivan IS NULL)
-        AND (Skriven = 0 OR Skriven IS NULL)
-      ORDER BY 
-        IME
-    `;
+    // Dohvati klijente preko API Gateway-a
+    const erpClients: ErpClient[] = await getErpClients();
 
-    console.log("📝 Izvršavanje SQL query-ja za klijente...");
-    const result = await pool.request().query(query);
-    const erpClients = result.recordset;
-
-    console.log(`📦 Pronađeno ${erpClients.length} klijenata u ERP bazi`);
+    console.log(`📦 Pronađeno ${erpClients.length} klijenata u ERP bazi preko API Gateway-a`);
 
     let created = 0;
     let updated = 0;

@@ -10,7 +10,13 @@ Ovaj projekat sadrži kompletnu dokumentaciju za postavljanje PortalV2 aplikacij
    - Troubleshooting sekcija
    - Korisne komande
 
-### 2. **QUICK_START.md** - Brzi Start
+### 2. **API_GATEWAY_SETUP.md** - API Gateway Setup
+   - Podešavanje API Gateway servera na lokalnoj mreži
+   - VPN konfiguracija
+   - Povezivanje cloud servera sa lokalnom ERP bazom
+   - **OBAVEZNO** pročitati ako koristite lokalnu ERP bazu
+
+### 3. **QUICK_START.md** - Brzi Start
    - Skraćena verzija sa najvažnijim koracima
    - Za iskusnije korisnike koji žele brzo postavljanje
 

@@ -1,15 +1,13 @@
 module.exports = {
   apps: [{
-    name: 'portalv2',
-    // Koristi tsx za pokretanje TypeScript server.ts fajla
-    script: 'tsx',
-    args: 'server.ts',
+    name: 'erp-api-gateway',
+    script: 'server.js',
     interpreter: 'node',
     instances: 1,
     exec_mode: 'fork',
     env: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: 3001
     },
     error_file: './logs/err.log',
     out_file: './logs/out.log',
@@ -17,8 +15,7 @@ module.exports = {
     merge_logs: true,
     autorestart: true,
     watch: false,
-    max_memory_restart: '1G',
-    // Restart aplikacije ako koristi više od 1GB RAM-a
+    max_memory_restart: '500M',
     min_uptime: '10s',
     max_restarts: 10,
     restart_delay: 4000
