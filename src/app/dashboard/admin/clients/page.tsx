@@ -23,6 +23,7 @@ export default function AdminClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false); // Dodaj state za sinkronizaciju
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -45,6 +46,37 @@ export default function AdminClientsPage() {
   useEffect(() => {
     loadClients();
   }, []);
+
+  const deleteClient = async (id: string, name: string) => {
+    const confirmed = window.confirm(
+      `Da li ste sigurni da želite obrisati klijenta "${name}" i sve njegove podružnice?\n` +
+        `Ovu akciju nije moguće poništiti.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/clients?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        showToast("Klijent je uspješno obrisan.", "success");
+        await loadClients();
+      } else {
+        showToast(
+          data?.error ||
+            "Greška pri brisanju klijenta. Provjeri da li nema aktivnih narudžbi/posjeta.",
+          "error"
+        );
+      }
+    } catch (error: any) {
+      showToast("Greška pri brisanju klijenta.", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   // Dodaj funkciju za sinkronizaciju
   const syncFromErp = async () => {
@@ -187,6 +219,7 @@ export default function AdminClientsPage() {
                   <th className="text-left px-4 py-2">Telefon</th>
                   <th className="text-left px-4 py-2">Email</th>
                   <th className="text-left px-4 py-2">Napomena</th>
+                  <th className="px-4 py-2 text-right">Akcije</th>
                 </tr>
               </thead>
               <tbody>
@@ -195,16 +228,60 @@ export default function AdminClientsPage() {
                     <tr
                       key={c.id}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
-                      onClick={() => router.push(`/dashboard/admin/clients/${c.id}`)}
                     >
-                      <td className="px-4 py-3 font-medium text-slate-800">
+                      <td
+                        className="px-4 py-3 font-medium text-slate-800"
+                        onClick={() =>
+                          router.push(`/dashboard/admin/clients/${c.id}`)
+                        }
+                      >
                         {c.name}
                       </td>
-                      <td className="px-4 py-3">{c.city || "-"}</td>
-                      <td className="px-4 py-3">{c.phone || "-"}</td>
-                      <td className="px-4 py-3">{c.email || "-"}</td>
-                      <td className="px-4 py-3 text-slate-500">
+                      <td
+                        className="px-4 py-3"
+                        onClick={() =>
+                          router.push(`/dashboard/admin/clients/${c.id}`)
+                        }
+                      >
+                        {c.city || "-"}
+                      </td>
+                      <td
+                        className="px-4 py-3"
+                        onClick={() =>
+                          router.push(`/dashboard/admin/clients/${c.id}`)
+                        }
+                      >
+                        {c.phone || "-"}
+                      </td>
+                      <td
+                        className="px-4 py-3"
+                        onClick={() =>
+                          router.push(`/dashboard/admin/clients/${c.id}`)
+                        }
+                      >
+                        {c.email || "-"}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-slate-500"
+                        onClick={() =>
+                          router.push(`/dashboard/admin/clients/${c.id}`)
+                        }
+                      >
                         {c.note || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteClient(c.id, c.name)}
+                          className={classNames(
+                            "inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium",
+                            "border-red-200 text-red-600 hover:bg-red-50",
+                            deletingId === c.id && "opacity-60 cursor-not-allowed"
+                          )}
+                          disabled={deletingId === c.id}
+                        >
+                          {deletingId === c.id ? "Brišem..." : "Obriši"}
+                        </button>
                       </td>
                     </tr>
                   )

@@ -122,3 +122,90 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json(updatedClient);
 }
+
+// DELETE - obriši klijenta i njegove podružnice
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return new NextResponse("Unauthorized", { status: 401 });
+
+  const user = session.user as any;
+  // Dozvoli samo ADMIN korisnicima da brišu klijente
+  if (user.role !== "ADMIN") {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "ID klijenta je obavezan." },
+      { status: 400 }
+    );
+  }
+
+  // Učitaj klijenta sa vezama da provjerimo da li ima narudžbi ili posjeta
+  const client = await prisma.client.findUnique({
+    where: { id },
+    include: {
+      branches: {
+        select: { id: true },
+      },
+      orders: {
+        select: { id: true },
+        take: 1,
+      },
+      visits: {
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+
+  if (!client) {
+    return NextResponse.json(
+      { error: "Klijent ne postoji." },
+      { status: 404 }
+    );
+  }
+
+  // Ako klijent ima narudžbe ili posjete, ne dozvoli brisanje
+  if (client.orders.length > 0 || client.visits.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Klijent ima povezane narudžbe ili posjete i ne može biti obrisan. " +
+          "Prvo arhiviraj/obradi te podatke.",
+      },
+      { status: 400 }
+    );
+  }
+
+  const branchIds = client.branches.map((b) => b.id);
+
+  await prisma.$transaction(async (tx) => {
+    if (branchIds.length > 0) {
+      // Prvo ukloni referencu na branch iz narudžbi (ako je nekad postojala)
+      await tx.order.updateMany({
+        where: {
+          branchId: { in: branchIds },
+        },
+        data: {
+          branchId: null,
+        },
+      });
+
+      // Obriši podružnice
+      await tx.clientBranch.deleteMany({
+        where: { id: { in: branchIds } },
+      });
+    }
+
+    // Na kraju obriši klijenta
+    await tx.client.delete({
+      where: { id },
+    });
+  });
+
+  return NextResponse.json({ success: true });
+}

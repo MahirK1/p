@@ -25,7 +25,7 @@ export function Sidebar({ onLinkClick }: SidebarProps = {}) {
   const userName = (session?.user as any)?.name;
 
   const getLinkClass = (href: string) => {
-    const isActive = pathname === href || pathname.startsWith(href + "/");
+    const isActive = pathname != null && (pathname === href || pathname.startsWith(href + "/"));
     return `flex items-center gap-2 py-2 px-2 rounded transition ${
       isActive
         ? "bg-slate-800 text-white font-medium"
