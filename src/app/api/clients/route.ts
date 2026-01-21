@@ -123,7 +123,7 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json(updatedClient);
 }
 
-// DELETE - obriši klijenta i njegove podružnice
+// DELETE - obriši klijenta i njegove podružnice (podržava i bulk brisanje)
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
@@ -135,18 +135,39 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
+  const queryId = searchParams.get("id");
 
-  if (!id) {
+  // Provjeri da li je bulk delete (ima body sa ids array)
+  let idsToDelete: string[] = [];
+  
+  // Pokušaj pročitati body (može biti bulk delete)
+  try {
+    const contentType = req.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const body = await req.json();
+      if (body && Array.isArray(body.ids)) {
+        idsToDelete = body.ids;
+      }
+    }
+  } catch {
+    // Ako nema body ili nije JSON, ignoriraj
+  }
+  
+  // Ako nema bulk delete, provjeri query parametar (single delete)
+  if (idsToDelete.length === 0 && queryId) {
+    idsToDelete = [queryId];
+  }
+
+  if (idsToDelete.length === 0) {
     return NextResponse.json(
-      { error: "ID klijenta je obavezan." },
+      { error: "ID klijenta ili lista ID-jeva je obavezna." },
       { status: 400 }
     );
   }
 
-  // Učitaj klijenta sa vezama da provjerimo da li ima narudžbi ili posjeta
-  const client = await prisma.client.findUnique({
-    where: { id },
+  // Učitaj sve klijente sa vezama
+  const clients = await prisma.client.findMany({
+    where: { id: { in: idsToDelete } },
     include: {
       branches: {
         select: { id: true },
@@ -162,33 +183,41 @@ export async function DELETE(req: NextRequest) {
     },
   });
 
-  if (!client) {
+  if (clients.length === 0) {
     return NextResponse.json(
-      { error: "Klijent ne postoji." },
+      { error: "Nijedan od klijenata ne postoji." },
       { status: 404 }
     );
   }
 
-  // Ako klijent ima narudžbe ili posjete, ne dozvoli brisanje
-  if (client.orders.length > 0 || client.visits.length > 0) {
+  // Provjeri da li neki klijent ima narudžbe ili posjete
+  const clientsWithOrdersOrVisits = clients.filter(
+    (c) => c.orders.length > 0 || c.visits.length > 0
+  );
+
+  if (clientsWithOrdersOrVisits.length > 0) {
+    const names = clientsWithOrdersOrVisits.map((c) => c.name).join(", ");
     return NextResponse.json(
       {
         error:
-          "Klijent ima povezane narudžbe ili posjete i ne može biti obrisan. " +
+          `Sljedeći klijenti imaju povezane narudžbe ili posjete i ne mogu biti obrisani: ${names}. ` +
           "Prvo arhiviraj/obradi te podatke.",
       },
       { status: 400 }
     );
   }
 
-  const branchIds = client.branches.map((b) => b.id);
+  // Prikupi sve branch ID-jeve
+  const allBranchIds = clients.flatMap((c) => c.branches.map((b) => b.id));
+
+  let deletedCount = 0;
 
   await prisma.$transaction(async (tx) => {
-    if (branchIds.length > 0) {
+    if (allBranchIds.length > 0) {
       // Prvo ukloni referencu na branch iz narudžbi (ako je nekad postojala)
       await tx.order.updateMany({
         where: {
-          branchId: { in: branchIds },
+          branchId: { in: allBranchIds },
         },
         data: {
           branchId: null,
@@ -197,15 +226,17 @@ export async function DELETE(req: NextRequest) {
 
       // Obriši podružnice
       await tx.clientBranch.deleteMany({
-        where: { id: { in: branchIds } },
+        where: { id: { in: allBranchIds } },
       });
     }
 
-    // Na kraju obriši klijenta
-    await tx.client.delete({
-      where: { id },
+    // Na kraju obriši klijente
+    const result = await tx.client.deleteMany({
+      where: { id: { in: idsToDelete } },
     });
+    
+    deletedCount = result.count;
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, deleted: deletedCount });
 }

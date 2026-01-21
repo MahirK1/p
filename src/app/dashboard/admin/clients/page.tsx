@@ -24,6 +24,8 @@ export default function AdminClientsPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false); // Dodaj state za sinkronizaciju
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -64,6 +66,7 @@ export default function AdminClientsPage() {
       if (res.ok) {
         showToast("Klijent je uspješno obrisan.", "success");
         await loadClients();
+        setSelectedIds(new Set());
       } else {
         showToast(
           data?.error ||
@@ -77,6 +80,79 @@ export default function AdminClientsPage() {
       setDeletingId(null);
     }
   };
+
+  const deleteBulkClients = async () => {
+    if (selectedIds.size === 0) return;
+
+    const selectedClients = clients.filter((c) => selectedIds.has(c.id));
+    const names = selectedClients.map((c) => c.name).join(", ");
+    const confirmed = window.confirm(
+      `Da li ste sigurni da želite obrisati ${selectedIds.size} klijent(a)?\n\n` +
+        `Klijenti: ${names}\n\n` +
+        `Ovu akciju nije moguće poništiti.`
+    );
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    try {
+      const idsArray = Array.from(selectedIds);
+      const res = await fetch("/api/clients", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsArray }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const successCount = data.deleted || selectedIds.size;
+        showToast(
+          `Uspješno obrisano ${successCount} klijent(a).`,
+          "success"
+        );
+        await loadClients();
+        setSelectedIds(new Set());
+      } else {
+        showToast(
+          data?.error ||
+            "Greška pri brisanju klijenata. Provjeri da li neki od klijenata imaju aktivne narudžbe/posjete.",
+          "error"
+        );
+      }
+    } catch (error: any) {
+      showToast("Greška pri brisanju klijenata.", "error");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelectClient = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const visibleClients = clients.filter((c) => !(c as any).hidden);
+    const allCurrentlySelected = visibleClients.length > 0 && visibleClients.every((c) => selectedIds.has(c.id));
+    
+    if (allCurrentlySelected) {
+      // Deselektuj sve
+      setSelectedIds(new Set());
+    } else {
+      // Selektuj sve vidljive
+      setSelectedIds(new Set(visibleClients.map((c) => c.id)));
+    }
+  };
+
+  const visibleClients = clients.filter((c) => !(c as any).hidden);
+  const allSelected = visibleClients.length > 0 && visibleClients.every((c) => selectedIds.has(c.id));
+  const someSelected = selectedIds.size > 0;
 
   // Dodaj funkciju za sinkronizaciju
   const syncFromErp = async () => {
@@ -182,9 +258,9 @@ export default function AdminClientsPage() {
       </header>
 
       <div className="bg-white rounded-xl shadow border border-slate-100">
-        <div className="p-4 border-b border-slate-100">
+        <div className="p-4 border-b border-slate-100 flex items-center gap-4">
           <input
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             placeholder="Brza pretraga (po nazivu, gradu, emailu)..."
             onChange={(e) => {
               const term = e.target.value.toLowerCase();
@@ -200,6 +276,29 @@ export default function AdminClientsPage() {
               );
             }}
           />
+          {someSelected && (
+            <button
+              type="button"
+              onClick={deleteBulkClients}
+              disabled={bulkDeleting}
+              className={classNames(
+                "inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium",
+                "border-red-200 text-red-600 hover:bg-red-50",
+                bulkDeleting && "opacity-60 cursor-not-allowed"
+              )}
+            >
+              {bulkDeleting ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  Brišem...
+                </>
+              ) : (
+                <>
+                  🗑️ Obriši selektovane ({selectedIds.size})
+                </>
+              )}
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -214,6 +313,14 @@ export default function AdminClientsPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
+                  <th className="px-4 py-2 w-12">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </th>
                   <th className="text-left px-4 py-2">Naziv</th>
                   <th className="text-left px-4 py-2">Grad</th>
                   <th className="text-left px-4 py-2">Telefon</th>
@@ -227,10 +334,25 @@ export default function AdminClientsPage() {
                   (c as any).hidden ? null : (
                     <tr
                       key={c.id}
-                      className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
+                      className={classNames(
+                        "border-t border-slate-100 hover:bg-slate-50 transition",
+                        selectedIds.has(c.id) && "bg-blue-50"
+                      )}
                     >
                       <td
-                        className="px-4 py-3 font-medium text-slate-800"
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleSelectClient(c.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td
+                        className="px-4 py-3 font-medium text-slate-800 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/admin/clients/${c.id}`)
                         }
@@ -238,7 +360,7 @@ export default function AdminClientsPage() {
                         {c.name}
                       </td>
                       <td
-                        className="px-4 py-3"
+                        className="px-4 py-3 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/admin/clients/${c.id}`)
                         }
@@ -246,7 +368,7 @@ export default function AdminClientsPage() {
                         {c.city || "-"}
                       </td>
                       <td
-                        className="px-4 py-3"
+                        className="px-4 py-3 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/admin/clients/${c.id}`)
                         }
@@ -254,7 +376,7 @@ export default function AdminClientsPage() {
                         {c.phone || "-"}
                       </td>
                       <td
-                        className="px-4 py-3"
+                        className="px-4 py-3 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/admin/clients/${c.id}`)
                         }
@@ -262,7 +384,7 @@ export default function AdminClientsPage() {
                         {c.email || "-"}
                       </td>
                       <td
-                        className="px-4 py-3 text-slate-500"
+                        className="px-4 py-3 text-slate-500 cursor-pointer"
                         onClick={() =>
                           router.push(`/dashboard/admin/clients/${c.id}`)
                         }
@@ -272,7 +394,10 @@ export default function AdminClientsPage() {
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => deleteClient(c.id, c.name)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteClient(c.id, c.name);
+                          }}
                           className={classNames(
                             "inline-flex items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium",
                             "border-red-200 text-red-600 hover:bg-red-50",
