@@ -195,8 +195,9 @@ export default function ManagerClientDetailPage({
               Podružnice ({client.branches.length})
             </h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          {/* Desktop table view */}
+          <div className="hidden md:block">
+            <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Naziv</th>
@@ -220,6 +221,40 @@ export default function ManagerClientDetailPage({
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {client.branches.map((branch) => (
+              <div
+                key={branch.id}
+                className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+              >
+                <div className="font-medium text-slate-800 mb-2">
+                  {branch.name}
+                </div>
+                <div className="text-sm text-slate-600 space-y-1">
+                  {branch.address && (
+                    <div>
+                      <span className="text-slate-500">Adresa: </span>
+                      {branch.address}
+                    </div>
+                  )}
+                  {branch.city && (
+                    <div>
+                      <span className="text-slate-500">Grad: </span>
+                      {branch.city}
+                    </div>
+                  )}
+                  {branch.phone && (
+                    <div>
+                      <span className="text-slate-500">Telefon: </span>
+                      {branch.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -230,57 +265,100 @@ export default function ManagerClientDetailPage({
             Posjete ({client.visits.length})
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          {client.visits.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">Nema posjeta.</div>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Datum / vrijeme</th>
-                  <th className="px-4 py-3 text-left">Komercijalista</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Napomena</th>
-                </tr>
-              </thead>
-              <tbody>
-                {client.visits.map((visit) => (
-                  <tr
-                    key={visit.id}
-                    className="border-t border-slate-100 hover:bg-slate-50 transition"
-                  >
-                    <td className="px-4 py-3 text-slate-900">
-                      {new Date(visit.scheduledAt).toLocaleString("bs-BA", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{visit.commercial.name}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColor(
-                          visit.status
-                        )}`}
-                      >
-                        {statusLabel(visit.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {visit.note ? (
-                        <span className="line-clamp-2">{visit.note}</span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
+        {client.visits.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">Nema posjeta.</div>
+        ) : (
+          <>
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Datum / vrijeme</th>
+                    <th className="px-4 py-3 text-left">Komercijalista</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-left">Napomena</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {client.visits.map((visit) => (
+                    <tr
+                      key={visit.id}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition"
+                    >
+                      <td className="px-4 py-3 text-slate-900">
+                        {new Date(visit.scheduledAt).toLocaleString("bs-BA", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{visit.commercial.name}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColor(
+                            visit.status
+                          )}`}
+                        >
+                          {statusLabel(visit.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {visit.note ? (
+                          <span className="line-clamp-2">{visit.note}</span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {client.visits.map((visit) => (
+                <div
+                  key={visit.id}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 mb-1">
+                        {visit.commercial.name}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        {new Date(visit.scheduledAt).toLocaleString("bs-BA", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold flex-shrink-0 ml-2 ${statusColor(
+                        visit.status
+                      )}`}
+                    >
+                      {statusLabel(visit.status)}
+                    </span>
+                  </div>
+                  {visit.note && (
+                    <div className="text-sm text-slate-600 pt-2 border-t border-slate-100">
+                      <span className="text-slate-500">Napomena: </span>
+                      {visit.note}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Fakture (Narudžbe) */}
@@ -290,64 +368,119 @@ export default function ManagerClientDetailPage({
             Fakture / Narudžbe ({client.orders.length})
           </h2>
         </div>
-        <div className="overflow-x-auto">
-          {client.orders.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">Nema narudžbi.</div>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Broj narudžbe</th>
-                  <th className="px-4 py-3 text-left">Komercijalista</th>
-                  <th className="px-4 py-3 text-left">Podružnica</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Ukupno</th>
-                  <th className="px-4 py-3 text-right">Datum</th>
-                  <th className="px-4 py-3 text-right">Akcije</th>
-                </tr>
-              </thead>
-              <tbody>
-                {client.orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="border-t border-slate-100 hover:bg-slate-50 transition"
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {order.orderNumber}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{order.commercial.name}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {order.branch?.name || "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColor(
-                          order.status
-                        )}`}
-                      >
-                        {statusLabel(order.status)}
+        {client.orders.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">Nema narudžbi.</div>
+        ) : (
+          <>
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Broj narudžbe</th>
+                    <th className="px-4 py-3 text-left">Komercijalista</th>
+                    <th className="px-4 py-3 text-left">Podružnica</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Ukupno</th>
+                    <th className="px-4 py-3 text-right">Datum</th>
+                    <th className="px-4 py-3 text-right">Akcije</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {client.orders.map((order) => (
+                    <tr
+                      key={order.id}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition"
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {order.orderNumber}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{order.commercial.name}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {order.branch?.name || "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${statusColor(
+                            order.status
+                          )}`}
+                        >
+                          {statusLabel(order.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                        {Number(order.totalAmount).toFixed(2)} KM
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-600">
+                        {new Date(order.createdAt).toLocaleDateString("bs-BA")}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Link
+                          href={`/dashboard/order-manager/orders/${order.id}`}
+                          className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
+                        >
+                          Detalji →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {client.orders.map((order) => (
+                <div
+                  key={order.id}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 mb-1">
+                        {order.orderNumber}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        {order.commercial.name}
+                      </div>
+                      {order.branch?.name && (
+                        <div className="text-sm text-slate-600">
+                          {order.branch.name}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold flex-shrink-0 ml-2 ${statusColor(
+                        order.status
+                      )}`}
+                    >
+                      {statusLabel(order.status)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div className="text-sm">
+                      <span className="text-slate-500">Datum: </span>
+                      <span className="text-slate-600">
+                        {new Date(order.createdAt).toLocaleDateString("bs-BA")}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                      {Number(order.totalAmount).toFixed(2)} KM
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-600">
-                      {new Date(order.createdAt).toLocaleDateString("bs-BA")}
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-semibold text-slate-800">
+                        {Number(order.totalAmount).toFixed(2)} KM
+                      </div>
                       <Link
                         href={`/dashboard/order-manager/orders/${order.id}`}
                         className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
                       >
                         Detalji →
                       </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

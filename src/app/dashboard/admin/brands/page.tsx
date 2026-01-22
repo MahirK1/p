@@ -135,58 +135,96 @@ export default function AdminBrandsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="flex items-center justify-center p-12">
-              <LoadingSpinner size="md" />
-            </div>
-          ) : filteredBrands.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">
-              Nema brendova za prikaz.
-            </div>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Naziv</th>
-                  <th className="px-4 py-3 text-left">Datum kreiranja</th>
-                  <th className="px-4 py-3 text-right">Akcije</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBrands.map((brand) => (
-                  <tr
-                    key={brand.id}
-                    className="border-t border-slate-100 hover:bg-slate-50 transition"
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {brand.name}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {new Date(brand.createdAt).toLocaleDateString("bs-BA")}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
-                          onClick={() => openEditModal(brand)}
-                        >
-                          Uredi
-                        </button>
-                        <button
-                          className="text-sm font-medium text-red-600 hover:text-red-500"
-                          onClick={() => handleDelete(brand.id, brand.name)}
-                        >
-                          Obriši
-                        </button>
-                      </div>
-                    </td>
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <LoadingSpinner size="md" />
+          </div>
+        ) : filteredBrands.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">
+            Nema brendova za prikaz.
+          </div>
+        ) : (
+          <>
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Naziv</th>
+                    <th className="px-4 py-3 text-left">Datum kreiranja</th>
+                    <th className="px-4 py-3 text-right">Akcije</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {filteredBrands.map((brand) => (
+                    <tr
+                      key={brand.id}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition"
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {brand.name}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {new Date(brand.createdAt).toLocaleDateString("bs-BA")}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            className="text-sm font-medium text-emerald-600 hover:text-emerald-500"
+                            onClick={() => openEditModal(brand)}
+                          >
+                            Uredi
+                          </button>
+                          <button
+                            className="text-sm font-medium text-red-600 hover:text-red-500"
+                            onClick={() => handleDelete(brand.id, brand.name)}
+                          >
+                            Obriši
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {filteredBrands.map((brand) => (
+                <div
+                  key={brand.id}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 mb-1">
+                        {brand.name}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        Kreirano: {new Date(brand.createdAt).toLocaleDateString("bs-BA")}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      className="flex-1 text-sm font-medium text-emerald-600 hover:text-emerald-500 py-2 px-3 border border-emerald-200 rounded-lg hover:bg-emerald-50"
+                      onClick={() => openEditModal(brand)}
+                    >
+                      Uredi
+                    </button>
+                    <button
+                      className="flex-1 text-sm font-medium text-red-600 hover:text-red-500 py-2 px-3 border border-red-200 rounded-lg hover:bg-red-50"
+                      onClick={() => handleDelete(brand.id, brand.name)}
+                    >
+                      Obriši
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {modalOpen &&

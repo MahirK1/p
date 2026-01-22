@@ -7,6 +7,47 @@ import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    // Učitaj iz localStorage ako postoji
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sidebarCollapsed");
+      if (saved !== null) return saved === "true";
+    }
+    return false;
+  });
+
+  // Automatski collapse na srednjim ekranima (tablet, laptop)
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      // Na ekranima između 768px i 1280px, automatski collapse ako nije ručno postavljeno
+      if (width >= 768 && width < 1280) {
+        const saved = localStorage.getItem("sidebarCollapsed");
+        if (saved === null) {
+          setCollapsed(true);
+        }
+      } else if (width >= 1280) {
+        const saved = localStorage.getItem("sidebarCollapsed");
+        if (saved === null) {
+          setCollapsed(false);
+        }
+      }
+    };
+
+    // Postavi inicijalno stanje
+    handleResize();
+
+    // Slušaj promjene veličine ekrana
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Spremi u localStorage kada se promijeni
+  const handleToggleCollapse = () => {
+    const newCollapsed = !collapsed;
+    setCollapsed(newCollapsed);
+    localStorage.setItem("sidebarCollapsed", String(newCollapsed));
+  };
 
   // Prevent body scroll when sidebar is open
   useEffect(() => {
@@ -63,7 +104,10 @@ export function MobileSidebar() {
 
       {/* Desktop sidebar - always visible on desktop */}
       <div className="hidden md:block flex-shrink-0">
-        <Sidebar />
+        <Sidebar 
+          collapsed={collapsed}
+          onToggleCollapse={handleToggleCollapse}
+        />
       </div>
 
       {/* Hamburger button - integrated in mobile header */}

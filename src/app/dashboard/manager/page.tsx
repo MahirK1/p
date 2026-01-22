@@ -477,8 +477,9 @@ export default function ManagerDashboardPage() {
                   Performance Ranking
                 </h2>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+              {/* Desktop table view */}
+              <div className="hidden md:block">
+                <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="px-4 py-3 text-left">Rang</th>
@@ -545,6 +546,68 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3 p-4">
+                {data.performanceRanking.map((com) => (
+                  <div
+                    key={com.commercialId}
+                    onClick={() =>
+                      router.push(
+                        `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
+                      )
+                    }
+                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {com.rank <= 3 ? (
+                          <span
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0 ${
+                              com.rank === 1
+                                ? "bg-yellow-100 text-yellow-700"
+                                : com.rank === 2
+                                ? "bg-slate-100 text-slate-700"
+                                : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {com.rank}
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 font-semibold flex-shrink-0">{com.rank}.</span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-slate-800 truncate">
+                            {com.commercial}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-slate-500">Prodaja: </span>
+                        <span className="font-semibold text-slate-800">{com.amount.toFixed(2)} KM</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Narudžbe: </span>
+                        <span className="text-slate-800">{com.ordersCount}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Posjete: </span>
+                        <span className="text-slate-800">{com.visitsDone} / {com.visitsCount}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Konverzija: </span>
+                        <span className="font-medium text-emerald-600">{com.conversionRate.toFixed(1)}%</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-slate-500">Realizacija: </span>
+                        <span className="font-medium text-blue-600">{com.visitCompletionRate.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -555,8 +618,9 @@ export default function ManagerDashboardPage() {
                 Prodaja po komercijalisti
               </h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 text-left">Komercijalista</th>
@@ -613,6 +677,57 @@ export default function ManagerDashboardPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {filteredCommercials.map((com) => (
+                <div
+                  key={com.commercialId}
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
+                    )
+                  }
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+                >
+                  <div className="font-medium text-slate-800 mb-2">
+                    {com.commercial}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-slate-500">Prodaja: </span>
+                      <span className="font-semibold text-slate-800">{com.amount.toFixed(2)} KM</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Narudžbe: </span>
+                      <span className="text-slate-800">{com.ordersCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Prosjek: </span>
+                      <span className="text-slate-800">{com.avgOrderValue.toFixed(2)} KM</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Posjete: </span>
+                      <span className="text-slate-800">{com.visitsDone} / {com.visitsCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Konverzija: </span>
+                      <span className="font-medium text-emerald-600">
+                        {com.visitsDone > 0
+                          ? ((com.visitsWithOrders / com.visitsDone) * 100).toFixed(1)
+                          : 0}%
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Prosjek dana: </span>
+                      <span className="text-slate-800">
+                        {com.avgDaysToOrder > 0 ? com.avgDaysToOrder.toFixed(1) : "-"} d
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Achievement po komercijalisti */}
@@ -623,8 +738,9 @@ export default function ManagerDashboardPage() {
                   Realizacija planova
                 </h2>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+              {/* Desktop table view */}
+              <div className="hidden md:block">
+                <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="px-4 py-3 text-left">Komercijalista</th>
@@ -672,6 +788,50 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile card view */}
+              <div className="md:hidden space-y-3 p-4">
+                {data.achievementByCommercial.map((ach, idx) => (
+                  <div
+                    key={`${ach.commercialId}-${idx}`}
+                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                  >
+                    <div className="font-medium text-slate-800 mb-2">
+                      {ach.commercial}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-slate-500">Target: </span>
+                        <span className="text-slate-800">{ach.target.toFixed(2)} KM</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Ostvareno: </span>
+                        <span className="font-semibold text-slate-800">{ach.achieved.toFixed(2)} KM</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Postotak: </span>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            ach.percentage >= 100
+                              ? "bg-emerald-100 text-emerald-700"
+                              : ach.percentage >= 80
+                              ? "bg-blue-100 text-blue-700"
+                              : ach.percentage >= 50
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {ach.percentage.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Preostalo: </span>
+                        <span className="text-slate-800">{Math.max(0, ach.target - ach.achieved).toFixed(2)} KM</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </>
@@ -684,8 +844,9 @@ export default function ManagerDashboardPage() {
             <div className="border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900">Top proizvodi</h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 text-left">Proizvod</th>
@@ -718,6 +879,37 @@ export default function ManagerDashboardPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {data.topProducts.map((product) => (
+                <div
+                  key={product.productId}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                >
+                  <div className="font-medium text-slate-800 mb-1">
+                    {product.productName}
+                  </div>
+                  <div className="text-sm text-slate-600 mb-2">
+                    Brend: {product.brand}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-slate-500">Količina: </span>
+                      <span className="text-slate-800">{product.quantity}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Prodaja: </span>
+                      <span className="font-semibold text-slate-800">{product.amount.toFixed(2)} KM</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Narudžbe: </span>
+                      <span className="text-slate-800">{product.orders}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -761,8 +953,9 @@ export default function ManagerDashboardPage() {
             <div className="border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900">Top klijenti</h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-4 py-3 text-left">Klijent</th>
@@ -800,6 +993,43 @@ export default function ManagerDashboardPage() {
                 <div className="flex items-center justify-center p-12">
                   <LoadingSpinner size="md" />
                 </div>
+              )}
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {data.topClients.length === 0 ? (
+                <div className="flex items-center justify-center p-12">
+                  <LoadingSpinner size="md" />
+                </div>
+              ) : (
+                data.topClients.map((client) => (
+                  <div
+                    key={client.clientId}
+                    onClick={() =>
+                      router.push(`/dashboard/manager/clients/${client.clientId}`)
+                    }
+                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+                  >
+                    <div className="font-medium text-slate-800 mb-2">
+                      {client.client}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
+                      <div>
+                        <span className="text-slate-500">Prodaja: </span>
+                        <span className="font-semibold text-slate-800">{client.amount.toFixed(2)} KM</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Narudžbe: </span>
+                        <span className="text-slate-800">{client.ordersCount}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-slate-500">Prosjek narudžbe: </span>
+                        <span className="text-slate-800">{(client.amount / client.ordersCount).toFixed(2)} KM</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>

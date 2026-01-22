@@ -180,57 +180,98 @@ export default function CommercialOrdersPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="overflow-x-auto -mx-4 md:mx-0">
-          {loading ? (
-            <div className="flex items-center justify-center p-12">
-              <LoadingSpinner size="md" />
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">
-              Nema narudžbi za prikaz.
-            </div>
-          ) : (
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Broj</th>
-                  <th className="px-4 py-3 text-left">Klijent</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Ukupno</th>
-                  <th className="px-4 py-3 text-right">Datum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredOrders.map((o) => (
-                  <tr
-                    key={o.id}
-                    className="border-t border-slate-100 hover:bg-slate-50 transition"
-                  >
-                    <td className="px-4 py-3 font-medium text-slate-800">
-                      {o.orderNumber}
-                    </td>
-                    <td className="px-4 py-3">{o.client.name}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusColor(
-                          o.status
-                        )}`}
-                      >
-                        {statusLabel(o.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold">
-                      {Number(o.totalAmount).toFixed(2)} KM
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-500">
-                      {new Date(o.createdAt).toLocaleDateString("bs-BA")}
-                    </td>
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <LoadingSpinner size="md" />
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">
+            Nema narudžbi za prikaz.
+          </div>
+        ) : (
+          <>
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Broj</th>
+                    <th className="px-4 py-3 text-left">Klijent</th>
+                    <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Ukupno</th>
+                    <th className="px-4 py-3 text-right">Datum</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {filteredOrders.map((o) => (
+                    <tr
+                      key={o.id}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
+                      onClick={() => router.push(`/dashboard/commercial/orders/${o.id}`)}
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {o.orderNumber}
+                      </td>
+                      <td className="px-4 py-3">{o.client.name}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusColor(
+                            o.status
+                          )}`}
+                        >
+                          {statusLabel(o.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        {Number(o.totalAmount).toFixed(2)} KM
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-500">
+                        {new Date(o.createdAt).toLocaleDateString("bs-BA")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {filteredOrders.map((o) => (
+                <div
+                  key={o.id}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+                  onClick={() => router.push(`/dashboard/commercial/orders/${o.id}`)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 mb-1">
+                        {o.orderNumber}
+                      </div>
+                      <div className="text-sm text-slate-600 truncate">
+                        {o.client.name}
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-medium flex-shrink-0 ml-2 ${statusColor(
+                        o.status
+                      )}`}
+                    >
+                      {statusLabel(o.status)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div className="text-xs text-slate-500">
+                      {new Date(o.createdAt).toLocaleDateString("bs-BA")}
+                    </div>
+                    <div className="text-sm font-semibold text-slate-800">
+                      {Number(o.totalAmount).toFixed(2)} KM
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {modalOpen && (

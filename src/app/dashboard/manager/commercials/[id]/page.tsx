@@ -210,8 +210,9 @@ export default function CommercialDetailPage({
           <div className="border-b border-slate-100 px-6 py-4">
             <h2 className="text-lg font-semibold text-slate-900">Top klijenti</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          {/* Desktop table view */}
+          <div className="hidden md:block">
+            <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Klijent</th>
@@ -242,6 +243,33 @@ export default function CommercialDetailPage({
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {data.topClients.map((client) => (
+              <div
+                key={client.clientId}
+                onClick={() =>
+                  router.push(`/dashboard/manager/clients/${client.clientId}`)
+                }
+                className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+              >
+                <div className="font-medium text-slate-800 mb-2">
+                  {client.client}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
+                  <div>
+                    <span className="text-slate-500">Prodaja: </span>
+                    <span className="font-semibold text-slate-800">{client.amount.toFixed(2)} KM</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Narudžbe: </span>
+                    <span className="text-slate-800">{client.orders}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Poslednje narudžbe */}
@@ -249,8 +277,9 @@ export default function CommercialDetailPage({
           <div className="border-b border-slate-100 px-6 py-4">
             <h2 className="text-lg font-semibold text-slate-900">Poslednje narudžbe</h2>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          {/* Desktop table view */}
+          <div className="hidden md:block">
+            <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Broj narudžbe</th>
@@ -278,6 +307,29 @@ export default function CommercialDetailPage({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card view */}
+          <div className="md:hidden space-y-3 p-4">
+            {data.orders.map((order) => (
+              <div
+                key={order.id}
+                onClick={() =>
+                  router.push(`/dashboard/order-manager/orders/${order.id}`)
+                }
+                className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
+              >
+                <div className="font-medium text-slate-800 mb-1">
+                  {order.orderNumber}
+                </div>
+                <div className="text-sm text-slate-600 mb-2">
+                  {order.client}
+                </div>
+                <div className="text-sm font-semibold text-slate-800 pt-2 border-t border-slate-100">
+                  {order.totalAmount.toFixed(2)} KM
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

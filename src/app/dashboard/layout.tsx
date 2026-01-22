@@ -6,7 +6,7 @@ import { MobileSidebar } from "@/components/layout/MobileSidebar";
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      {/* Sidebar - fixed on desktop */}
+      {/* Sidebar - desktop */}
       <div className="print:hidden hidden md:block flex-shrink-0">
         <MobileSidebar />
       </div>
@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
       
       {/* Main content - scrollable */}
-      <main className="flex-1 bg-slate-50 pt-14 md:pt-0 overflow-y-auto min-w-0 print:bg-white print:p-0">
+      <main className="flex-1 bg-slate-50 pt-14 md:pt-0 overflow-y-auto min-w-0 print:bg-white print:p-0 transition-all duration-300">
         <div className="p-4 md:p-6 lg:p-8 print:p-0">
           <div className="max-w-7xl mx-auto w-full print:max-w-none">
             {children}

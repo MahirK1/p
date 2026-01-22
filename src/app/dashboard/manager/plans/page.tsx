@@ -229,15 +229,17 @@ export default function ManagerPlansPage() {
         <div className="p-4 border-b border-slate-100">
           <p className="text-sm font-medium text-slate-700">Postojeći planovi</p>
         </div>
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="flex items-center justify-center p-12">
-              <LoadingSpinner size="md" />
-            </div>
-          ) : plans.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500">Nema planova.</div>
-          ) : (
-            <table className="min-w-full text-sm">
+        {loading ? (
+          <div className="flex items-center justify-center p-12">
+            <LoadingSpinner size="md" />
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500">Nema planova.</div>
+        ) : (
+          <>
+            {/* Desktop table view */}
+            <div className="hidden md:block">
+              <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Brend</th>
@@ -271,8 +273,42 @@ export default function ManagerPlansPage() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+            </div>
+
+            {/* Mobile card view */}
+            <div className="md:hidden space-y-3 p-4">
+              {plans.map((p) => (
+                <div
+                  key={p.id}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-slate-800 mb-1">
+                        {p.brand?.name ?? "Globalno"}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        {p.month}.{p.year}
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-800">
+                      {Number(p.totalTarget).toFixed(2)} KM
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => onDelete(p.id)}
+                      className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                      Obriši
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

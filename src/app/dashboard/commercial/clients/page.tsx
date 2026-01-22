@@ -113,7 +113,7 @@ export default function CommercialClientsPage() {
             {filteredClients.length} {filteredClients.length === 1 ? "klijent" : "klijenata"}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div>
           {loading ? (
             <div className="flex items-center justify-center p-12">
               <LoadingSpinner size="md" />

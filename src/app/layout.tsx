@@ -40,14 +40,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="apple-touch-icon" href="/italgroup-logo.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body>
-        <AuthSessionProvider>
-          <ToastProvider>
-            <ServiceWorkerRegistration />
-            {children}
-          </ToastProvider>
-        </AuthSessionProvider>
-      </body>
+      <body className="h-screen min-h-0 flex flex-col overflow-hidden">
+  <AuthSessionProvider>
+    <ToastProvider>
+      <ServiceWorkerRegistration />
+      <main className="flex-1 min-h-0 overflow-hidden">
+        {children}
+      </main>
+    </ToastProvider>
+  </AuthSessionProvider>
+</body>
+
     </html>
   );
 }

@@ -91,7 +91,7 @@ export default function ManagerClientsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="overflow-x-auto">
+        <div>
           {loading ? (
             <div className="flex items-center justify-center p-12">
               <LoadingSpinner size="md" />
