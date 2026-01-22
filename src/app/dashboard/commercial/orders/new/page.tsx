@@ -38,11 +38,13 @@ type Product = {
 };
 
 type InvoiceItem = {
+  id: string; // Jedinstveni ID za svaku stavku
   productId: string;
   product?: Product;
   quantity: number;
   price: number;
   discountPercent: number; // 0–100
+  isGratis: boolean; // Artikal je besplatan
 };
 
 function NewOrderPageContent() {
@@ -124,23 +126,23 @@ function NewOrderPageContent() {
     );
   }, [products, productSearch]);
 
-  const addProduct = (p: Product) => {
-    if (p.stock <= 0) {
+  const addProduct = (p: Product, isGratis: boolean = false) => {
+    if (p.stock <= 0 && !isGratis) {
       showToast("Zaliha je 0, artikal se ne može dodati.", "warning");
       return;
     }
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === p.id);
-      if (existing) return prev;
-      const basePrice = Number(p.price ?? 0);
+      const basePrice = isGratis ? 0 : Number(p.price ?? 0);
       return [
         ...prev,
         {
+          id: `${p.id}-${Date.now()}-${Math.random()}`, // Jedinstveni ID
           productId: p.id,
           product: p,
           quantity: 1,
           price: basePrice,
           discountPercent: 0,
+          isGratis: isGratis,
         },
       ];
     });
@@ -148,24 +150,36 @@ function NewOrderPageContent() {
   };
 
   const updateItem = (
-    productId: string,
+    itemId: string,
     field: keyof InvoiceItem,
-    value: number
+    value: number | boolean
   ) => {
     setItems((prev) =>
-      prev.map((item) =>
-        item.productId === productId
-          ? { ...item, [field]: isNaN(value) ? 0 : value }
-          : item
-      )
+      prev.map((item) => {
+        if (item.id === itemId) {
+          const updated = { ...item, [field]: value };
+          // Ako se artikal označi kao gratis, postavi cijenu na 0
+          if (field === "isGratis" && value === true) {
+            updated.price = 0;
+            updated.discountPercent = 0;
+          }
+          // Ako se artikal označi kao ne-gratis, vrati originalnu cijenu
+          if (field === "isGratis" && value === false && item.product) {
+            updated.price = Number(item.product.price ?? 0);
+          }
+          return updated;
+        }
+        return item;
+      })
     );
   };
 
-  const removeItem = (productId: string) => {
-    setItems((prev) => prev.filter((i) => i.productId !== productId));
+  const removeItem = (itemId: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
   const lineTotal = (item: InvoiceItem) => {
+    if (item.isGratis) return 0;
     const base = item.price * item.quantity;
     const discount = (base * item.discountPercent) / 100;
     return base - discount;
@@ -180,7 +194,8 @@ function NewOrderPageContent() {
         showToast("Proizvod nedostaje u listi.", "error");
         return;
       }
-      if (i.quantity > prod.stock) {
+      // Preskoči provjeru zaliha za gratis artikle
+      if (!i.isGratis && i.quantity > prod.stock) {
         showToast(`Količina za ${prod.name} premašuje zalihu (${prod.stock}).`, "warning");
         return;
       }
@@ -201,7 +216,8 @@ function NewOrderPageContent() {
           productId: i.productId,
           quantity: i.quantity,
           discountPercent: i.discountPercent || 0,
-          price: i.price,
+          price: i.isGratis ? 0 : i.price,
+          isGratis: i.isGratis || false,
         })),
       }),
     });
@@ -288,6 +304,7 @@ function NewOrderPageContent() {
                 <tr>
                   <th className="px-3 py-2 text-left">Artikal</th>
                   <th className="px-3 py-2 text-right">Količina</th>
+                  <th className="px-3 py-2 text-center">Gratis</th>
                   <th className="px-3 py-2 text-right">Rabat %</th>
                   <th className="px-3 py-2 text-right">Cijena</th>
                   <th className="px-3 py-2 text-right">Ukupno</th>
@@ -297,12 +314,19 @@ function NewOrderPageContent() {
               <tbody>
                 {items.map((item) => (
                   <tr
-                    key={item.productId}
+                    key={item.id}
                     className="border-t border-slate-100 align-middle"
                   >
                     <td className="px-3 py-2">
-                      <div className="text-sm font-medium text-slate-800">
-                        {item.product?.name ?? "Artikal"}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-slate-800">
+                          {item.product?.name ?? "Artikal"}
+                        </div>
+                        {item.isGratis && (
+                          <span className="px-2 py-0.5 text-xs font-semibold text-green-700 bg-green-100 rounded">
+                            GRATIS
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-500">
                         SKU: {item.product?.sku}{" "}
@@ -317,12 +341,27 @@ function NewOrderPageContent() {
                         value={item.quantity}
                         onChange={(e) =>
                           updateItem(
-                            item.productId,
+                            item.id,
                             "quantity",
                             Number(e.target.value)
                           )
                         }
                         className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={item.isGratis}
+                        onChange={(e) =>
+                          updateItem(
+                            item.id,
+                            "isGratis",
+                            e.target.checked
+                          )
+                        }
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        title="Označi kao gratis"
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -333,25 +372,32 @@ function NewOrderPageContent() {
                         value={item.discountPercent}
                         onChange={(e) =>
                           updateItem(
-                            item.productId,
+                            item.id,
                             "discountPercent",
                             Number(e.target.value)
                           )
                         }
-                        className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none"
+                        disabled={item.isGratis}
+                        className={`w-20 rounded-lg border border-slate-200 px-2 py-1 text-right text-sm focus:border-blue-500 focus:outline-none ${
+                          item.isGratis ? "bg-slate-100 cursor-not-allowed opacity-50" : ""
+                        }`}
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {lineTotal(item).toFixed(2)} KM
+                      {item.isGratis ? (
+                        <span className="text-green-600 font-semibold">0.00 KM</span>
+                      ) : (
+                        item.price ? item.price.toFixed(2) + " KM" : "-"
+                      )}
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-slate-800">
-                      {(lineTotal(item) - (lineTotal(item) * item.discountPercent / 100)).toFixed(2)} KM
+                      {lineTotal(item).toFixed(2)} KM
                     </td>
                     <td className="px-3 py-2 text-right">
                       <button
                         type="button"
                         className="text-xs text-slate-400 hover:text-red-500"
-                        onClick={() => removeItem(item.productId)}
+                        onClick={() => removeItem(item.id)}
                       >
                         ✕
                       </button>
@@ -361,7 +407,7 @@ function NewOrderPageContent() {
                 {items.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-3 py-6 text-center text-sm text-slate-500"
                     >
                       Dodaj artikle ispod da započneš narudžbu.
@@ -390,36 +436,50 @@ function NewOrderPageContent() {
                   </div>
                 ) : (
                   filteredProducts.map((p) => (
-                    <button
+                    <div
                       key={p.id}
-                      type="button"
                       className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 transition ${
                         p.stock <= 0 ? "bg-red-50 hover:bg-red-100" : ""
                       }`}
-                      onClick={() => addProduct(p)}
                     >
-                      <div className="flex-1">
-                        <div className={`font-medium ${
-                          p.stock <= 0 ? "text-red-700" : "text-slate-800"
-                        }`}>
-                          {p.name}
+                      <button
+                        type="button"
+                        className="flex-1 text-left"
+                        onClick={() => addProduct(p, false)}
+                      >
+                        <div className="flex-1">
+                          <div className={`font-medium ${
+                            p.stock <= 0 ? "text-red-700" : "text-slate-800"
+                          }`}>
+                            {p.name}
+                          </div>
+                          <div className={`text-xs ${
+                            p.stock <= 0 ? "text-red-500" : "text-slate-500"
+                          }`}>
+                            SKU: {p.sku}{" "}
+                            {p.catalogNumber && `• Kataloški: ${p.catalogNumber}`}
+                            {p.stock <= 0 && (
+                              <span className="ml-2 font-semibold">• Zaliha: 0</span>
+                            )}
+                          </div>
                         </div>
-                        <div className={`text-xs ${
-                          p.stock <= 0 ? "text-red-500" : "text-slate-500"
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-xs font-semibold ${
+                          p.stock <= 0 ? "text-red-600" : "text-slate-700"
                         }`}>
-                          SKU: {p.sku}{" "}
-                          {p.catalogNumber && `• Kataloški: ${p.catalogNumber}`}
-                          {p.stock <= 0 && (
-                            <span className="ml-2 font-semibold">• Zaliha: 0</span>
-                          )}
+                          {p.price ? `${Number(p.price).toFixed(2)} KM` : "-"}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => addProduct(p, true)}
+                          className="px-2 py-1 text-xs font-semibold text-green-600 bg-green-50 rounded hover:bg-green-100 transition"
+                          title="Dodaj kao gratis"
+                        >
+                          Gratis
+                        </button>
                       </div>
-                      <div className={`text-xs font-semibold ${
-                        p.stock <= 0 ? "text-red-600" : "text-slate-700"
-                      }`}>
-                        {p.price ? `${Number(p.price).toFixed(2)} KM` : "-"}
-                      </div>
-                    </button>
+                    </div>
                   ))
                 )}
               </div>

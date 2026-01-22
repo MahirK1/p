@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
     quantity: number;
     discountPercent?: number;
     price?: number;
+    isGratis?: boolean;
   }>;
   const clientId = body.clientId as string;
   const branchId = body.branchId as string | undefined;
@@ -86,11 +87,12 @@ export async function POST(req: NextRequest) {
     if (!product) throw new Error("Proizvod ne postoji");
     if (item.quantity <= 0) throw new Error("Količina mora biti > 0");
 
-    // Koristi cijenu iz requesta ako postoji, inače iz baze
-    const unitPrice = item.price ? Number(item.price) : Number(product.price ?? 0);
+    // Ako je artikal gratis, cijena je 0
+    const isGratis = item.isGratis || false;
+    const unitPrice = isGratis ? 0 : (item.price ? Number(item.price) : Number(product.price ?? 0));
     const discountPercent = item.discountPercent ? Number(item.discountPercent) : 0;
     
-    // Računanje sa rabatom
+    // Računanje sa rabatom (za gratis artikle je sve 0)
     const baseTotal = unitPrice * item.quantity;
     const discountAmount = (baseTotal * discountPercent) / 100;
     const lineTotal = baseTotal - discountAmount;
@@ -127,27 +129,35 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Decrement stock
+  // Provjera zaliha (preskoči za gratis artikle)
+  for (const item of items) {
+    const product = products.find((p) => p.id === item.productId);
+    if (!product) {
+      return NextResponse.json({ error: "Proizvod ne postoji." }, { status: 400 });
+    }
+    // Ako artikal nije gratis, provjeri zalihu
+    if (!item.isGratis) {
+      const available = Number(product?.stock ?? 0);
+      if (item.quantity > available) {
+        return NextResponse.json(
+          { error: `Nedovoljna zaliha za ${product.name} (na stanju ${available}).` },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
+  // Decrement stock (preskoči za gratis artikle)
   for (const item of order.items) {
-    await prisma.product.update({
-      where: { id: item.productId },
-      data: { stock: { decrement: item.quantity } },
-    });
+    const originalItem = items.find((i) => i.productId === item.productId);
+    // Ne smanjuj zalihu za gratis artikle
+    if (!originalItem?.isGratis) {
+      await prisma.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: item.quantity } },
+      });
+    }
   }
-  // Provjera zaliha
-for (const item of items) {
-  const product = products.find((p) => p.id === item.productId);
-  const available = Number(product?.stock ?? 0);
-  if (!product) {
-    return NextResponse.json({ error: "Proizvod ne postoji." }, { status: 400 });
-  }
-  if (item.quantity > available) {
-    return NextResponse.json(
-      { error: `Nedovoljna zaliha za ${product.name} (na stanju ${available}).` },
-      { status: 400 }
-    );
-  }
-}
   // Send email notifications (ne blokira ako email fail-uje)
   try {
     await sendOrderEmail(order);
