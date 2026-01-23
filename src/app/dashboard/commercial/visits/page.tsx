@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -12,14 +12,22 @@ type Visit = {
   note?: string | null;
   managerId?: string | null;
   client: { name: string };
+  branches?: Array<{ branch: { id: string; name: string } }>;
+};
+
+type ClientBranch = {
+  id: string;
+  name: string;
 };
 
 type Client = {
   id: string;
   name: string;
+  branches?: ClientBranch[];
 };
 
 export default function CommercialVisitsPage() {
+  const { showToast } = useToast();
   const [visits, setVisits] = useState<Visit[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,9 +36,19 @@ export default function CommercialVisitsPage() {
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
+  
+  // State za branch dropdown
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // State za client searchable dropdown
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     clientId: "",
+    branchIds: [] as string[],
     useNewClient: false,
     clientData: {
       name: "",
@@ -78,6 +96,50 @@ export default function CommercialVisitsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Zatvori dropdown kada klikneš van njega
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setBranchDropdownOpen(false);
+      }
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(event.target as Node)) {
+        setClientDropdownOpen(false);
+      }
+    }
+
+    if (branchDropdownOpen || clientDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [branchDropdownOpen, clientDropdownOpen]);
+
+  // Filtrirani klijenti za pretragu
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return clients;
+    const term = clientSearch.toLowerCase();
+    return clients.filter((c) =>
+      c.name.toLowerCase().includes(term)
+    );
+  }, [clients, clientSearch]);
+
+  // Odabrani klijent
+  const selectedClient = useMemo(() => {
+    return clients.find((c) => c.id === form.clientId);
+  }, [clients, form.clientId]);
+
+  const handleClientSelect = (clientId: string) => {
+    setForm((f) => ({ ...f, clientId, branchIds: [] })); // Reset branchove kada se promijeni klijent
+    const client = clients.find((c) => c.id === clientId);
+    setClientSearch(client?.name || "");
+    setClientDropdownOpen(false);
+  };
+
+  // Dostupni branchovi za odabranog klijenta
+  const availableBranches = useMemo(() => {
+    if (!selectedClient || !selectedClient.branches) return [];
+    return selectedClient.branches;
+  }, [selectedClient]);
 
   const handleCompleteClick = (visit: Visit) => {
     // Provjeri da li je posjeta dodijeljena od managera
@@ -186,6 +248,7 @@ export default function CommercialVisitsPage() {
       body: JSON.stringify({
         clientId: form.useNewClient ? undefined : form.clientId,
         clientData: form.useNewClient ? form.clientData : undefined,
+        branchIds: form.useNewClient ? [] : form.branchIds, // array branchId-jeva, ako je prazan = glavni klijent
         scheduledAt: scheduledAt.toISOString(),
         note: finalNote || undefined,
       }),
@@ -197,6 +260,7 @@ export default function CommercialVisitsPage() {
       setModalOpen(false);
       setForm({
         clientId: "",
+        branchIds: [],
         useNewClient: false,
         clientData: {
           name: "",
@@ -214,6 +278,7 @@ export default function CommercialVisitsPage() {
         contactPersonDuringVisit: "",
         note: "",
       });
+      setClientSearch(""); // Reset search
       await load();
     } else {
       const err = await res.text();
@@ -283,6 +348,14 @@ export default function CommercialVisitsPage() {
                         <h3 className="font-semibold text-slate-900 truncate">
                           {v.client.name}
                         </h3>
+                        {v.branches && v.branches.length > 0 && (
+                          <p className="text-xs text-blue-600 font-medium mt-0.5">
+                            📍 {v.branches.length === 1 
+                              ? `Podružnica: ${v.branches[0].branch.name}`
+                              : `${v.branches.length} podružnice: ${v.branches.map(vb => vb.branch.name).join(", ")}`
+                            }
+                          </p>
+                        )}
                         {v.managerId && (
                           <p className="text-xs text-slate-500 mt-0.5">
                             Dodijeljena od managera
@@ -318,6 +391,21 @@ export default function CommercialVisitsPage() {
                           })}
                         </span>
                       </div>
+                      {v.branches && v.branches.length > 0 && (
+                        <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                          <span className="text-xs font-medium text-blue-800 block mb-1">
+                            📍 Podružnice:
+                          </span>
+                          <ul className="text-xs text-blue-700 space-y-0.5">
+                            {v.branches.map((vb) => (
+                              <li key={vb.branch.id} className="flex items-center gap-1.5">
+                                <span className="w-1 h-1 bg-blue-600 rounded-full"></span>
+                                {vb.branch.name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {v.note && (
                         <div>
                           <span className="text-slate-500">Napomena: </span>
@@ -382,6 +470,14 @@ export default function CommercialVisitsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-medium">{v.client.name}</div>
+                        {v.branches && v.branches.length > 0 && (
+                          <div className="text-xs text-blue-600 font-medium mt-0.5">
+                            📍 {v.branches.length === 1 
+                              ? `Podružnica: ${v.branches[0].branch.name}`
+                              : `${v.branches.length} podružnice: ${v.branches.map(vb => vb.branch.name).join(", ")}`
+                            }
+                          </div>
+                        )}
                         {v.managerId && (
                           <div className="text-xs text-slate-500 mt-0.5">
                             Dodijeljena od managera
@@ -447,6 +543,21 @@ export default function CommercialVisitsPage() {
                     {selectedVisit.client.name} -{" "}
                     {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA")}
                   </p>
+                  {selectedVisit.branches && selectedVisit.branches.length > 0 && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-xs font-medium text-blue-800 mb-1">
+                        📍 Podružnice za posjetu:
+                      </p>
+                      <ul className="text-xs text-blue-700 space-y-1">
+                        {selectedVisit.branches.map((vb, idx) => (
+                          <li key={vb.branch.id} className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                            {vb.branch.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <button
                   className="text-slate-400 hover:text-slate-600"
@@ -722,26 +833,117 @@ export default function CommercialVisitsPage() {
                     </div>
                   </div>
                 ) : (
-                  /* Select postojećeg klijenta */
+                  /* Searchable dropdown za postojećeg klijenta */
                   <div>
                     <label className="text-sm font-medium text-slate-600">
                       Odaberi klijenta (apoteku) *
                     </label>
-                    <select
-                      value={form.clientId}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, clientId: e.target.value }))
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                      required
-                    >
-                      <option value="">Odaberi...</option>
-                      {clients.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative mt-1" ref={clientDropdownRef}>
+                      <input
+                        type="text"
+                        value={clientSearch}
+                        onChange={(e) => {
+                          setClientSearch(e.target.value);
+                          setClientDropdownOpen(true);
+                          setForm((f) => ({ ...f, clientId: "", branchIds: [] })); // Reset selection when typing
+                        }}
+                        onFocus={() => setClientDropdownOpen(true)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        placeholder="Unesi naziv klijenta ili klikni da vidiš listu..."
+                        required={!form.clientId}
+                      />
+                      {clientDropdownOpen && filteredClients.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                          {filteredClients.map((client) => (
+                            <button
+                              key={client.id}
+                              type="button"
+                              onClick={() => handleClientSelect(client.id)}
+                              className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition ${
+                                form.clientId === client.id ? "bg-blue-50" : ""
+                              }`}
+                            >
+                              <div className="font-medium text-sm text-slate-800">
+                                {client.name}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Branch selection - prikaži samo ako klijent ima branchove */}
+                    {selectedClient && availableBranches.length > 0 && (
+                      <div className="mt-2">
+                        <label className="text-xs font-medium text-slate-500">
+                          Podružnice (opcionalno)
+                        </label>
+                        <div className="relative mt-1" ref={branchDropdownRef}>
+                          <button
+                            type="button"
+                            onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm focus:border-blue-500 focus:outline-none bg-white"
+                          >
+                            {form.branchIds.length === 0 ? (
+                              <span className="text-slate-500">Glavni klijent (nije odabrana podružnica)</span>
+                            ) : form.branchIds.length === 1 ? (
+                              <span className="text-slate-800">
+                                {availableBranches.find(b => b.id === form.branchIds[0])?.name || "1 podružnica"}
+                              </span>
+                            ) : (
+                              <span className="text-slate-800">
+                                {form.branchIds.length} podružnica odabrano
+                              </span>
+                            )}
+                            <span className="float-right text-slate-400">▼</span>
+                          </button>
+                          {branchDropdownOpen && (
+                            <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                              <div className="p-2">
+                                <label className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={form.branchIds.length === 0}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setForm((f) => ({ ...f, branchIds: [] }));
+                                      }
+                                    }}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">Glavni klijent</span>
+                                </label>
+                                {availableBranches.map((branch) => (
+                                  <label
+                                    key={branch.id}
+                                    className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={form.branchIds.includes(branch.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setForm((f) => ({
+                                            ...f,
+                                            branchIds: [...f.branchIds, branch.id],
+                                          }));
+                                        } else {
+                                          setForm((f) => ({
+                                            ...f,
+                                            branchIds: f.branchIds.filter((id) => id !== branch.id),
+                                          }));
+                                        }
+                                      }}
+                                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-slate-700">{branch.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -837,6 +1039,3 @@ export default function CommercialVisitsPage() {
   );
 }
 
-function showToast(arg0: string, arg1: string) {
-  throw new Error("Function not implemented.");
-}

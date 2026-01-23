@@ -36,6 +36,11 @@ export async function GET(req: NextRequest) {
     where,
     include: {
       client: true,
+      branches: {
+        include: {
+          branch: true,
+        },
+      },
       commercial: true,
     },
     orderBy: { scheduledAt: "asc" },
@@ -54,6 +59,7 @@ export async function POST(req: NextRequest) {
   const {
     clientId, // ako postoji, koristi postojećeg
     clientData, // ako ne postoji clientId, kreiraj novog klijenta
+    branchIds, // array branchId-jeva - ako nije selektovan, prazan array = glavni klijent
     commercialId,
     scheduledAt,
     note,
@@ -70,6 +76,7 @@ export async function POST(req: NextRequest) {
       contactPerson?: string;
       note?: string;
     };
+    branchIds?: string[]; // array branchId-jeva
     commercialId?: string;
     scheduledAt: string;
     note?: string;
@@ -150,6 +157,9 @@ export async function POST(req: NextRequest) {
 
   const isManagerCreating = ["MANAGER", "ADMIN"].includes(user.role) && user.id !== targetCommercialId;
 
+  // Normalizuj branchIds - ako nije array, pretvori u array ili prazan array
+  const branchIdsArray = Array.isArray(branchIds) ? branchIds.filter(id => id && id.trim()) : [];
+
   const visit = await prisma.visit.create({
     data: {
       clientId: finalClientId,
@@ -158,9 +168,19 @@ export async function POST(req: NextRequest) {
       scheduledAt: new Date(scheduledAt),
       note: note ?? "",
       status: "PLANNED",
+      branches: branchIdsArray.length > 0 ? {
+        create: branchIdsArray.map(branchId => ({
+          branchId: branchId,
+        })),
+      } : undefined,
     },
     include: { 
-      client: true, 
+      client: true,
+      branches: {
+        include: {
+          branch: true,
+        },
+      },
       commercial: true,
       manager: {
         select: {
@@ -184,10 +204,17 @@ export async function POST(req: NextRequest) {
       minute: '2-digit',
     });
 
+    // Dodaj informacije o podružnicama ako postoje
+    let branchInfo = '';
+    if (visit.branches && visit.branches.length > 0) {
+      const branchNames = visit.branches.map(vb => vb.branch.name).join(', ');
+      branchInfo = `\nPodružnice: ${branchNames}`;
+    }
+
     sendPushNotificationToUser(
       targetCommercialId,
       "Nova posjeta",
-      `${visit.client.name} - ${formattedDate} u ${formattedTime}${note ? `\n${note}` : ''}`,
+      `${visit.client.name} - ${formattedDate} u ${formattedTime}${branchInfo}${note ? `\n${note}` : ''}`,
       {
         tag: `visit-${visit.id}`,
         url: `/dashboard/commercial/visits`,
@@ -243,7 +270,15 @@ export async function PATCH(req: NextRequest) {
       status: status ?? existing.status,
       note: note ?? existing.note,
     },
-    include: { client: true, commercial: true },
+    include: { 
+      client: true, 
+      branches: {
+        include: {
+          branch: true,
+        },
+      },
+      commercial: true 
+    },
   });
 
   return NextResponse.json(visit);

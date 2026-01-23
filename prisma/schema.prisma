@@ -91,7 +91,8 @@ model ClientBranch {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  orders Order[]
+  orders      Order[]
+  visitBranches VisitBranch[]
 }
 
 model Product {
@@ -156,7 +157,8 @@ model Visit {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  orders       Order[]     // <-- DODAJ OVO
+  orders       Order[]
+  branches     VisitBranch[]
 }
 
 model Plan {
@@ -234,6 +236,18 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("push_subscriptions")
+}
+
+model VisitBranch {
+  id        String   @id @default(cuid())
+  visitId   String
+  visit     Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  branchId  String
+  branch    ClientBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([visitId, branchId])
+  @@map("visit_branches")
 }
 
 model AppSetting {
