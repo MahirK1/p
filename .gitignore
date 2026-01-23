@@ -43,3 +43,10 @@ next-env.d.ts
 /src/generated/prisma
 
 .vercel
+
+/api-gateway
+API_GATEWAY_ARCHITECTURE.md
+API_GATEWAY_SETUP.md
+deploy.sh
+DEPLOYMENT_GUIDE.md
+ENV_SETUP_CLOUD.md

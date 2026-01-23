@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -58,31 +58,37 @@ export default function CommercialDetailPage({
   const [data, setData] = useState<CommercialAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Koristi searchParams nakon što su svi hooks pozvani
-  const selectedYear = Number(searchParams?.get("year") ?? new Date().getFullYear());
-  const selectedMonth = Number(searchParams?.get("month") ?? new Date().getMonth() + 1);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/analytics/commercial/${id}?year=${selectedYear}&month=${selectedMonth}`
-      );
-      if (!res.ok) {
-        throw new Error("Failed to load analytics");
-      }
-      const json = await res.json();
-      setData(json);
-    } catch (error) {
-      console.error("Error loading analytics:", error);
-      showToast("Greška pri učitavanju analitike.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Koristi searchParams nakon što su svi hooks pozvani - koristi useMemo da osigura konzistentnost
+  const selectedYear = useMemo(() => {
+    return Number(searchParams?.get("year") ?? new Date().getFullYear());
+  }, [searchParams]);
+  
+  const selectedMonth = useMemo(() => {
+    return Number(searchParams?.get("month") ?? new Date().getMonth() + 1);
+  }, [searchParams]);
 
   useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/analytics/commercial/${id}?year=${selectedYear}&month=${selectedMonth}`
+        );
+        if (!res.ok) {
+          throw new Error("Failed to load analytics");
+        }
+        const json = await res.json();
+        setData(json);
+      } catch (error) {
+        console.error("Error loading analytics:", error);
+        showToast("Greška pri učitavanju analitike.", "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, selectedYear, selectedMonth]);
 
   // Early return mora biti NAKON svih hooks poziva
