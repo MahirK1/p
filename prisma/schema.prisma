@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRISMA_DB_URL")
+}
+
+enum UserRole {
+  COMMERCIAL
+  MANAGER
+  ORDER_MANAGER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  CANCELED
+}
+
+enum VisitStatus {
+  PLANNED
+  DONE
+  CANCELED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(COMMERCIAL)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders          Order[]          @relation("CommercialOrders")
+  visits          Visit[]          @relation("CommercialVisits")
+  managedVisits   Visit[]          @relation("ManagerVisits")
+  plans           PlanAssignment[]
+  createdPlans    Plan[]           @relation("UserCreatedPlans")
+  messages        ChatMessage[]    @relation("AuthorMessages")
+  chatMemberships ChatRoomMember[]
+  pushSubscription PushSubscription?
+}
+
+model Client {
+  id            String         @id @default(cuid())
+  erpId         String?        @unique // Partner.Id iz ERP
+  name          String         // Partner.IME
+  matBroj       String?        // Partner.MAT_BROJ - Matični broj
+  pdvBroj       String?        // Partner.PDV ili EUPDVBroj
+  address       String?        // Partner.ADRESA
+  city          String?        // Partner.SJEDISTE
+  phone         String?        // Partner.Telefon
+  email         String?        // Partner.EMAIL
+  contactPerson String?        // Kontakt osoba
+  note          String?        // Partner.KOMENTAR
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  branches      ClientBranch[]
+  orders        Order[]
+  visits        Visit[]
+}
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+  plans    Plan[]
+}
+
+model ClientBranch {
+  id            String   @id @default(cuid())
+  erpId         String?  @unique // RjPartnera.Id iz ERP
+  name          String   // RjPartnera.Naziv
+  idBroj        String?  // RjPartnera.IDBroj - ID broj podružnice
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+  address       String?  // RjPartnera.Adresa
+  city          String?  // RjPartnera.Mjesto
+  phone         String?  // RjPartnera.Telefon
+  email         String?  // RjPartnera.Email
+  contactPerson String?  // RjPartnera.KontaktOsoba
+  zipCode       String?  // RjPartnera.PTTBroj
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders      Order[]
+  visitBranches VisitBranch[]
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  sku           String   @unique
+  catalogNumber String?
+  stock         Int      @default(0)
+  price         Decimal? @db.Decimal(10, 2)
+  description   String?
+  brandId       String?
+  brand         Brand?   @relation(fields: [brandId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orderItems OrderItem[]
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique
+  clientId     String
+  client       Client      @relation(fields: [clientId], references: [id])
+  commercialId String
+  commercial   User        @relation("CommercialOrders", fields: [commercialId], references: [id])
+  status       OrderStatus @default(PENDING)
+  totalAmount  Decimal     @db.Decimal(12, 2)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  items        OrderItem[]
+  branchId     String?
+  branch       ClientBranch? @relation(fields: [branchId], references: [id])
+  visitId      String?       // <-- NOVO POLJE
+  visit        Visit?        @relation(fields: [visitId], references: [id])
+  note         String?
+}
+model OrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id])
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitPrice       Decimal  @db.Decimal(10, 2)
+  discountPercent Decimal? @db.Decimal(5, 2) // npr. 0–100
+  lineTotal       Decimal  @db.Decimal(12, 2)
+}
+
+model Visit {
+  id           String      @id @default(cuid())
+  clientId     String
+  client       Client      @relation(fields: [clientId], references: [id])
+  commercialId String
+  commercial   User        @relation("CommercialVisits", fields: [commercialId], references: [id])
+  managerId    String?
+  manager      User?       @relation("ManagerVisits", fields: [managerId], references: [id])
+  scheduledAt  DateTime
+  status       VisitStatus @default(PLANNED)
+  note         String?
+  images       Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  orders       Order[]
+  branches     VisitBranch[]
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  brandId     String?
+  brand       Brand?   @relation(fields: [brandId], references: [id])
+  month       Int
+  year        Int
+  totalTarget Decimal  @db.Decimal(12, 2)
+  createdById String
+  createdBy   User     @relation("UserCreatedPlans", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments PlanAssignment[]
+}
+
+model PlanAssignment {
+  id           String   @id @default(cuid())
+  planId       String
+  plan         Plan     @relation(fields: [planId], references: [id])
+  commercialId String
+  commercial   User     @relation(fields: [commercialId], references: [id])
+  target       Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum ChatRoomType {
+  DIRECT
+  GROUP
+}
+
+model ChatRoom {
+  id        String       @id @default(cuid())
+  type      ChatRoomType
+  name      String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  members  ChatRoomMember[]
+  messages ChatMessage[]
+}
+
+model ChatRoomMember {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      ChatRoom @relation(fields: [roomId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([roomId, userId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  room      ChatRoom @relation(fields: [roomId], references: [id])
+  authorId  String
+  author    User     @relation("AuthorMessages", fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+  readBy    Json?
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  endpoint  String
+  keys      String   // JSON string sa keys
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
+}
+
+model VisitBranch {
+  id        String   @id @default(cuid())
+  visitId   String
+  visit     Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  branchId  String
+  branch    ClientBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([visitId, branchId])
+  @@map("visit_branches")
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
