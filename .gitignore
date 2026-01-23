@@ -52,5 +52,5 @@ ENV_SETUP_CLOUD.md
 QUICK_START.md
 README_DEPLOYMENT.md
 deploy.sh
-
+/scripts
 env.example.cloud
