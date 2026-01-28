@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import { syncClients } from "@/lib/sync-clients";
 import { syncBranches } from "@/lib/sync-branches";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,11 +26,21 @@ export async function POST(req: NextRequest) {
     console.log("🔄 Počinje sinkronizacija lokacija...");
     const branchesStats = await syncBranches();
 
-    return NextResponse.json({
+    const result = {
       success: true,
       clients: clientsStats,
       branches: branchesStats,
+    };
+
+    const session = await getServerSession(authOptions);
+    const auditUser = (session?.user as any) || null;
+    await logAudit(req, auditUser, {
+      action: "SYNC_CLIENTS_AND_BRANCHES",
+      entityType: "Sync",
+      metadata: result,
     });
+
+    return NextResponse.json(result);
   } catch (error: any) {
     console.error("❌ Greška pri sinkronizaciji:", error);
     return NextResponse.json(

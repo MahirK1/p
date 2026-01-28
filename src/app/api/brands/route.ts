@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const brands = await prisma.brand.findMany({
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
     data: { name: name.trim() },
   });
 
+  await logAudit(req, user, {
+    action: "CREATE_BRAND",
+    entityType: "Brand",
+    entityId: brand.id,
+    metadata: { name: brand.name },
+  });
+
   return NextResponse.json(brand, { status: 201 });
 }
 
@@ -84,6 +92,13 @@ export async function PUT(req: NextRequest) {
     data: { name: name.trim() },
   });
 
+  await logAudit(req, user, {
+    action: "UPDATE_BRAND",
+    entityType: "Brand",
+    entityId: brand.id,
+    metadata: { name: brand.name },
+  });
+
   return NextResponse.json(brand);
 }
 
@@ -120,6 +135,12 @@ export async function DELETE(req: NextRequest) {
 
   await prisma.brand.delete({
     where: { id },
+  });
+
+  await logAudit(req, user, {
+    action: "DELETE_BRAND",
+    entityType: "Brand",
+    entityId: id,
   });
 
   return NextResponse.json({ success: true });

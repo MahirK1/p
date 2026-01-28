@@ -8,7 +8,8 @@ export async function PUT(req: NextRequest) {
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   const user = session.user as any;
-  if (!["COMMERCIAL", "ADMIN"].includes(user.role)) {
+  // Dozvoli COMMERCIAL, MANAGER i ADMIN da ažuriraju podružnice
+  if (!["COMMERCIAL", "MANAGER", "ADMIN"].includes(user.role)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -57,6 +58,43 @@ export async function PUT(req: NextRequest) {
       client: true,
     },
   });
+
+  // Audit log
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE_CLIENT_BRANCH",
+        entityType: "ClientBranch",
+        entityId: updatedBranch.id,
+        metadata: {
+          clientId: updatedBranch.clientId,
+          before: {
+            name: existingBranch.name,
+            address: existingBranch.address,
+            city: existingBranch.city,
+            phone: existingBranch.phone,
+            email: existingBranch.email,
+            contactPerson: existingBranch.contactPerson,
+            zipCode: existingBranch.zipCode,
+          },
+          after: {
+            name: updatedBranch.name,
+            address: updatedBranch.address,
+            city: updatedBranch.city,
+            phone: updatedBranch.phone,
+            email: updatedBranch.email,
+            contactPerson: updatedBranch.contactPerson,
+            zipCode: updatedBranch.zipCode,
+          },
+        },
+        ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || undefined,
+        userAgent: req.headers.get("user-agent") || undefined,
+      },
+    });
+  } catch (e) {
+    console.error("Failed to write audit log for branch update", e);
+  }
 
   return NextResponse.json(updatedBranch);
 }

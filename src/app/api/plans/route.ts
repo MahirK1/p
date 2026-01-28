@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -120,6 +121,18 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await logAudit(req, user, {
+    action: "CREATE_PLAN",
+    entityType: "Plan",
+    entityId: plan.id,
+    metadata: {
+      brandId: plan.brandId,
+      month: plan.month,
+      year: plan.year,
+      totalTarget: plan.totalTarget,
+    },
+  });
+
   return NextResponse.json(plan, { status: 201 });
 }
 
@@ -175,6 +188,12 @@ export async function DELETE(req: NextRequest) {
   // Zatim obriši plan
   await prisma.plan.delete({
     where: { id },
+  });
+
+  await logAudit(req, user, {
+    action: "DELETE_PLAN",
+    entityType: "Plan",
+    entityId: id,
   });
 
   return NextResponse.json({ success: true });

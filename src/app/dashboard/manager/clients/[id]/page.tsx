@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Modal } from "@/components/ui/Modal";
+import { Pagination } from "@/components/ui/Pagination";
+import { PencilIcon } from "@heroicons/react/24/outline";
 
 type ClientDetail = {
   id: string;
@@ -22,6 +25,9 @@ type ClientDetail = {
     address?: string | null;
     city?: string | null;
     phone?: string | null;
+    email?: string | null;
+    contactPerson?: string | null;
+    zipCode?: string | null;
   }>;
   orders: Array<{
     id: string;
@@ -53,6 +59,38 @@ export default function ManagerClientDetailPage({
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
+  // Pagination state for branches
+  const [branchPage, setBranchPage] = useState(1);
+  const branchesPerPage = 10;
+
+  // Edit modals state
+  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
+  const [isEditBranchModalOpen, setIsEditBranchModalOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState<ClientDetail["branches"][0] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Form state for client
+  const [clientForm, setClientForm] = useState({
+    name: "",
+    address: "",
+    city: "",
+    phone: "",
+    email: "",
+    contactPerson: "",
+    note: "",
+  });
+
+  // Form state for branch
+  const [branchForm, setBranchForm] = useState({
+    name: "",
+    address: "",
+    city: "",
+    phone: "",
+    email: "",
+    contactPerson: "",
+    zipCode: "",
+  });
+
   const loadClient = async () => {
     setLoading(true);
     try {
@@ -77,6 +115,110 @@ export default function ManagerClientDetailPage({
   useEffect(() => {
     loadClient();
   }, [id]);
+
+  // Paginated branches
+  const paginatedBranches = useMemo(() => {
+    if (!client?.branches) return [];
+    const start = (branchPage - 1) * branchesPerPage;
+    const end = start + branchesPerPage;
+    return client.branches.slice(start, end);
+  }, [client?.branches, branchPage, branchesPerPage]);
+
+  const totalBranchPages = useMemo(() => {
+    if (!client?.branches) return 0;
+    return Math.ceil((client.branches.length || 0) / branchesPerPage);
+  }, [client?.branches, branchesPerPage]);
+
+  // Open edit client modal
+  const handleEditClient = () => {
+    if (!client) return;
+    setClientForm({
+      name: client.name || "",
+      address: client.address || "",
+      city: client.city || "",
+      phone: client.phone || "",
+      email: client.email || "",
+      contactPerson: client.contactPerson || "",
+      note: client.note || "",
+    });
+    setIsEditClientModalOpen(true);
+  };
+
+  // Open edit branch modal
+  const handleEditBranch = (branch: ClientDetail["branches"][0]) => {
+    setBranchForm({
+      name: branch.name || "",
+      address: branch.address || "",
+      city: branch.city || "",
+      phone: branch.phone || "",
+      email: branch.email || "",
+      contactPerson: branch.contactPerson || "",
+      zipCode: branch.zipCode || "",
+    });
+    setSelectedBranch(branch);
+    setIsEditBranchModalOpen(true);
+  };
+
+  // Save client
+  const handleSaveClient = async () => {
+    if (!client) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/clients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: client.id,
+          ...clientForm,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || "Failed to update client");
+      }
+
+      await loadClient();
+      setIsEditClientModalOpen(false);
+      showToast("Podaci o klijentu su uspješno ažurirani.", "success");
+    } catch (error: any) {
+      console.error("Error updating client:", error);
+      showToast(error.message || "Greška pri ažuriranju klijenta.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save branch
+  const handleSaveBranch = async () => {
+    if (!selectedBranch) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/clients/branches", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedBranch.id,
+          ...branchForm,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || "Failed to update branch");
+      }
+
+      await loadClient();
+      setIsEditBranchModalOpen(false);
+      setSelectedBranch(null);
+      showToast("Podaci o podružnici su uspješno ažurirani.", "success");
+    } catch (error: any) {
+      console.error("Error updating branch:", error);
+      showToast(error.message || "Greška pri ažuriranju podružnice.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -131,8 +273,8 @@ export default function ManagerClientDetailPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <button
             onClick={() => router.back()}
             className="mb-2 text-sm font-medium text-slate-600 hover:text-slate-900"
@@ -141,6 +283,13 @@ export default function ManagerClientDetailPage({
           </button>
           <h1 className="text-2xl font-semibold text-slate-900">{client.name}</h1>
         </div>
+        <button
+          onClick={handleEditClient}
+          className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+        >
+          <PencilIcon className="w-4 h-4" />
+          Uredi podatke
+        </button>
       </div>
 
       {/* Informacije o apoteci */}
@@ -195,19 +344,21 @@ export default function ManagerClientDetailPage({
               Podružnice ({client.branches.length})
             </h2>
           </div>
-          {/* Desktop table view */}
-          <div className="hidden md:block">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Naziv</th>
                   <th className="px-4 py-3 text-left">Adresa</th>
                   <th className="px-4 py-3 text-left">Grad</th>
                   <th className="px-4 py-3 text-left">Telefon</th>
+                  <th className="px-4 py-3 text-left">Email</th>
+                  <th className="px-4 py-3 text-left">Kontakt osoba</th>
+                  <th className="px-4 py-3 text-right">Akcije</th>
                 </tr>
               </thead>
               <tbody>
-                {client.branches.map((branch) => (
+                {paginatedBranches.map((branch) => (
                   <tr
                     key={branch.id}
                     className="border-t border-slate-100 hover:bg-slate-50 transition"
@@ -216,45 +367,31 @@ export default function ManagerClientDetailPage({
                     <td className="px-4 py-3 text-slate-600">{branch.address || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{branch.city || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{branch.phone || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">{branch.email || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">{branch.contactPerson || "-"}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => handleEditBranch(branch)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                      >
+                        <PencilIcon className="w-3.5 h-3.5" />
+                        Uredi
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          {/* Mobile card view */}
-          <div className="md:hidden space-y-3 p-4">
-            {client.branches.map((branch) => (
-              <div
-                key={branch.id}
-                className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
-              >
-                <div className="font-medium text-slate-800 mb-2">
-                  {branch.name}
-                </div>
-                <div className="text-sm text-slate-600 space-y-1">
-                  {branch.address && (
-                    <div>
-                      <span className="text-slate-500">Adresa: </span>
-                      {branch.address}
-                    </div>
-                  )}
-                  {branch.city && (
-                    <div>
-                      <span className="text-slate-500">Grad: </span>
-                      {branch.city}
-                    </div>
-                  )}
-                  {branch.phone && (
-                    <div>
-                      <span className="text-slate-500">Telefon: </span>
-                      {branch.phone}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          {totalBranchPages > 1 && (
+            <Pagination
+              currentPage={branchPage}
+              totalPages={totalBranchPages}
+              onPageChange={setBranchPage}
+              totalItems={client.branches.length}
+              itemsPerPage={branchesPerPage}
+            />
+          )}
         </div>
       )}
 
@@ -482,6 +619,234 @@ export default function ManagerClientDetailPage({
           </>
         )}
       </div>
+
+      {/* Edit Client Modal */}
+      <Modal
+        isOpen={isEditClientModalOpen}
+        onClose={() => setIsEditClientModalOpen(false)}
+        title="Uredi podatke o klijentu"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Naziv klijenta *
+            </label>
+            <input
+              type="text"
+              value={clientForm.name}
+              onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Adresa</label>
+              <input
+                type="text"
+                value={clientForm.address}
+                onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Grad</label>
+              <input
+                type="text"
+                value={clientForm.city}
+                onChange={(e) => setClientForm({ ...clientForm, city: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Telefon</label>
+              <input
+                type="text"
+                value={clientForm.phone}
+                onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={clientForm.email}
+                onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Kontakt osoba</label>
+            <input
+              type="text"
+              value={clientForm.contactPerson}
+              onChange={(e) =>
+                setClientForm({ ...clientForm, contactPerson: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Napomena</label>
+            <textarea
+              value={clientForm.note}
+              onChange={(e) => setClientForm({ ...clientForm, note: e.target.value })}
+              rows={4}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setIsEditClientModalOpen(false)}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+              disabled={saving}
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveClient}
+              disabled={saving || !clientForm.name.trim()}
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {saving ? "Spremanje..." : "Spremi promjene"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Branch Modal */}
+      <Modal
+        isOpen={isEditBranchModalOpen}
+        onClose={() => {
+          setIsEditBranchModalOpen(false);
+          setSelectedBranch(null);
+        }}
+        title="Uredi podatke o podružnici"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Naziv podružnice *
+            </label>
+            <input
+              type="text"
+              value={branchForm.name}
+              onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Adresa</label>
+              <input
+                type="text"
+                value={branchForm.address}
+                onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Grad</label>
+              <input
+                type="text"
+                value={branchForm.city}
+                onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Telefon</label>
+              <input
+                type="text"
+                value={branchForm.phone}
+                onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={branchForm.email}
+                onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Kontakt osoba
+              </label>
+              <input
+                type="text"
+                value={branchForm.contactPerson}
+                onChange={(e) =>
+                  setBranchForm({ ...branchForm, contactPerson: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Poštanski broj
+              </label>
+              <input
+                type="text"
+                value={branchForm.zipCode}
+                onChange={(e) => setBranchForm({ ...branchForm, zipCode: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditBranchModalOpen(false);
+                setSelectedBranch(null);
+              }}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+              disabled={saving}
+            >
+              Odustani
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveBranch}
+              disabled={saving || !branchForm.name.trim()}
+              className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {saving ? "Spremanje..." : "Spremi promjene"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -246,6 +247,17 @@ export async function POST(req: NextRequest) {
         { roomId: newRoom.id, userId },
         { roomId: newRoom.id, userId: commercialId },
       ],
+    });
+
+    await logAudit(req, user, {
+      action: "CREATE_CHAT_ROOM",
+      entityType: "ChatRoom",
+      entityId: newRoom.id,
+      metadata: {
+        type: "DIRECT",
+        managerId: userId,
+        commercialId,
+      },
     });
 
     // Vrati room sa članovima

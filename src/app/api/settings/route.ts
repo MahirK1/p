@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 // GET - Dobavi sve settings ili specifičan setting po ključu
 export async function GET(req: NextRequest) {
@@ -47,6 +48,16 @@ export async function PUT(req: NextRequest) {
     where: { key },
     update: { value },
     create: { key, value },
+  });
+
+  await logAudit(req, session.user as any, {
+    action: "UPSERT_SETTING",
+    entityType: "AppSetting",
+    entityId: setting.id,
+    metadata: {
+      key: setting.key,
+      value: setting.value,
+    },
   });
 
   return NextResponse.json(setting);

@@ -65,8 +65,8 @@ export async function PUT(req: NextRequest) {
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   const user = session.user as any;
-  // Dozvoli COMMERCIAL i ADMIN da ažuriraju klijente
-  if (!["COMMERCIAL", "ADMIN"].includes(user.role)) {
+  // Dozvoli COMMERCIAL, MANAGER i ADMIN da ažuriraju klijente
+  if (!["COMMERCIAL", "MANAGER", "ADMIN"].includes(user.role)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -119,6 +119,42 @@ export async function PUT(req: NextRequest) {
       },
     },
   });
+
+  // Audit log
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE_CLIENT",
+        entityType: "Client",
+        entityId: updatedClient.id,
+        metadata: {
+          before: {
+            name: existingClient.name,
+            address: existingClient.address,
+            city: existingClient.city,
+            phone: existingClient.phone,
+            email: existingClient.email,
+            contactPerson: existingClient.contactPerson,
+            note: existingClient.note,
+          },
+          after: {
+            name: updatedClient.name,
+            address: updatedClient.address,
+            city: updatedClient.city,
+            phone: updatedClient.phone,
+            email: updatedClient.email,
+            contactPerson: updatedClient.contactPerson,
+            note: updatedClient.note,
+          },
+        },
+        ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || undefined,
+        userAgent: req.headers.get("user-agent") || undefined,
+      },
+    });
+  } catch (e) {
+    console.error("Failed to write audit log for client update", e);
+  }
 
   return NextResponse.json(updatedClient);
 }

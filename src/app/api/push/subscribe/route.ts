@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,6 +35,12 @@ export async function POST(req: NextRequest) {
         endpoint: subscription.endpoint,
         keys: JSON.stringify(subscription.keys),
       },
+    });
+
+    await logAudit(req, session.user as any, {
+      action: "UPSERT_PUSH_SUBSCRIPTION",
+      entityType: "PushSubscription",
+      entityId: userId,
     });
 
     return NextResponse.json({ success: true });

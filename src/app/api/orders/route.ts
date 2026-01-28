@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import { sendOrderEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
@@ -166,6 +167,24 @@ export async function POST(req: NextRequest) {
     console.error("⚠️ Greška pri slanju emaila (narudžba je ipak kreirana):", error.message);
   }
 
+  await logAudit(req, user, {
+    action: "CREATE_ORDER",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: {
+      orderNumber: order.orderNumber,
+      clientId,
+      branchId: branchId || null,
+      totalAmount: order.totalAmount,
+      items: order.items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        discountPercent: i.discountPercent,
+      })),
+    },
+  });
+
   return NextResponse.json(order, { status: 201 });
 }
 
@@ -190,6 +209,15 @@ export async function PATCH(req: NextRequest) {
   const order = await prisma.order.update({
     where: { id: orderId },
     data: { status },
+  });
+
+  await logAudit(req, user, {
+    action: "UPDATE_ORDER_STATUS",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: {
+      status: order.status,
+    },
   });
 
   return NextResponse.json(order);

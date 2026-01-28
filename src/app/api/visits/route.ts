@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import { sendPushNotificationToUser } from "@/lib/push-notifications";
 import { sendNewClientEmail } from "@/lib/email";
 
@@ -160,7 +161,7 @@ export async function POST(req: NextRequest) {
   // Normalizuj branchIds - ako nije array, pretvori u array ili prazan array
   const branchIdsArray = Array.isArray(branchIds) ? branchIds.filter(id => id && id.trim()) : [];
 
-  const visit = await prisma.visit.create({
+    const visit = await prisma.visit.create({
     data: {
       clientId: finalClientId,
       commercialId: targetCommercialId,
@@ -228,6 +229,20 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  await logAudit(req, user, {
+    action: "CREATE_VISIT",
+    entityType: "Visit",
+    entityId: visit.id,
+    metadata: {
+      clientId: visit.clientId,
+      commercialId: visit.commercialId,
+      managerId: visit.managerId,
+      scheduledAt: visit.scheduledAt,
+      note: visit.note,
+      branches: branchIdsArray,
+    },
+  });
+
   return NextResponse.json(visit, { status: 201 });
 }
 
@@ -281,6 +296,16 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
+  await logAudit(req, user, {
+    action: "UPDATE_VISIT",
+    entityType: "Visit",
+    entityId: visit.id,
+    metadata: {
+      status: visit.status,
+      note: visit.note,
+    },
+  });
+
   return NextResponse.json(visit);
 }
 
@@ -300,6 +325,13 @@ export async function DELETE(req: NextRequest) {
   }
 
   await prisma.visit.delete({ where: { id } });
+
+  await logAudit(req, user, {
+    action: "DELETE_VISIT",
+    entityType: "Visit",
+    entityId: id,
+  });
+
   return new NextResponse(null, { status: 204 });
 }
 

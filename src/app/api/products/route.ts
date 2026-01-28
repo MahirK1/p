@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const products = await prisma.product.findMany({
@@ -49,6 +50,19 @@ export async function POST(req: NextRequest) {
     include: { brand: true },
   });
 
+  await logAudit(req, session.user as any, {
+    action: "CREATE_PRODUCT",
+    entityType: "Product",
+    entityId: product.id,
+    metadata: {
+      name,
+      sku,
+      brandId: brandId || null,
+      stock: Number(stock) || 0,
+      price: price ? Number(price) : null,
+    },
+  });
+
   return NextResponse.json(product, { status: 201 });
 }
 
@@ -89,6 +103,19 @@ export async function PUT(req: NextRequest) {
       description,
     },
     include: { brand: true },
+  });
+
+  await logAudit(req, session.user as any, {
+    action: "UPDATE_PRODUCT",
+    entityType: "Product",
+    entityId: product.id,
+    metadata: {
+      name: product.name,
+      sku: product.sku,
+      brandId: product.brandId,
+      stock: product.stock,
+      price: product.price,
+    },
   });
 
   return NextResponse.json(product);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 import { hash } from "bcryptjs";
 
 export async function GET(req: NextRequest) {
@@ -99,6 +100,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  await logAudit(req, user, {
+    action: "CREATE_USER",
+    entityType: "User",
+    entityId: newUser.id,
+    metadata: {
+      name,
+      email,
+      role,
+    },
+  });
+
   return NextResponse.json(newUser, { status: 201 });
 }
 
@@ -155,6 +167,18 @@ export async function PUT(req: NextRequest) {
     },
   });
 
+  await logAudit(req, user, {
+    action: "UPDATE_USER",
+    entityType: "User",
+    entityId: updatedUser.id,
+    metadata: {
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      passwordChanged: Boolean(password && password.trim().length > 0),
+    },
+  });
+
   return NextResponse.json(updatedUser);
 }
 
@@ -187,6 +211,12 @@ export async function DELETE(req: NextRequest) {
 
   await prisma.user.delete({
     where: { id },
+  });
+
+  await logAudit(req, user, {
+    action: "DELETE_USER",
+    entityType: "User",
+    entityId: id,
   });
 
   return NextResponse.json({ success: true });

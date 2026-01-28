@@ -44,6 +44,7 @@ model User {
   messages        ChatMessage[]    @relation("AuthorMessages")
   chatMemberships ChatRoomMember[]
   pushSubscription PushSubscription?
+  auditLogs      AuditLog[]
 }
 
 model Client {
@@ -258,4 +259,21 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@map("audit_logs")
 }

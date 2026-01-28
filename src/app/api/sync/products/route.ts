@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
-import { prisma } from "@/lib/prisma";
 import { syncProducts } from "@/lib/sync-products";
+import { logAudit } from "@/lib/audit";
 
 // GET - Za ručnu sinkronizaciju iz admin panela
 export async function GET(req: NextRequest) {
@@ -14,6 +14,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await syncProducts();
+
+    await logAudit(req, session?.user as any, {
+      action: "SYNC_PRODUCTS_MANUAL",
+      entityType: "Sync",
+      metadata: result,
+    });
+
     return NextResponse.json({
       success: true,
       stats: result,
@@ -48,6 +55,15 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await syncProducts();
+
+    const session = await getServerSession(authOptions).catch(() => null);
+
+    await logAudit(req, (session?.user as any) || null, {
+      action: "SYNC_PRODUCTS",
+      entityType: "Sync",
+      metadata: result,
+    });
+
     return NextResponse.json({
       success: true,
       stats: result,

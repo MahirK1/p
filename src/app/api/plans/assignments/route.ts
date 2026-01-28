@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -53,6 +54,17 @@ export async function POST(req: NextRequest) {
       },
     });
   }
+
+  await logAudit(req, user, {
+    action: existing ? "UPDATE_PLAN_ASSIGNMENT" : "CREATE_PLAN_ASSIGNMENT",
+    entityType: "PlanAssignment",
+    entityId: assignment.id,
+    metadata: {
+      planId,
+      commercialId,
+      target: assignment.target,
+    },
+  });
 
   return NextResponse.json(assignment);
 }
