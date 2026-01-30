@@ -142,27 +142,14 @@ export default function CommercialVisitsPage() {
   }, [selectedClient]);
 
   const handleCompleteClick = (visit: Visit) => {
-    // Provjeri da li je posjeta dodijeljena od managera
-    if (visit.managerId) {
-      // Provjeri da li je vrijeme posjete prošlo (ili danas)
-      const scheduledDate = new Date(visit.scheduledAt);
-      const now = new Date();
-      scheduledDate.setHours(0, 0, 0, 0);
-      now.setHours(0, 0, 0, 0);
-
-      if (scheduledDate <= now) {
-        setSelectedVisit(visit);
-        setCompletionForm({
-          contactPerson: "",
-          note: "",
-        });
-        setCompletionModalOpen(true);
-        return;
-      }
-    }
-
-    // Ako nije od managera ili vrijeme nije prošlo, direktno označi kao završeno
-    updateStatus(visit.id, "DONE");
+    // Prikaži modal za sve posjete kada se označavaju kao završene
+    // Komercijalista može dodati kontakt osobu i napomenu
+    setSelectedVisit(visit);
+    setCompletionForm({
+      contactPerson: "",
+      note: "",
+    });
+    setCompletionModalOpen(true);
   };
 
   const updateStatus = async (id: string, status: Visit["status"]) => {
@@ -181,12 +168,26 @@ export default function CommercialVisitsPage() {
     setCompletionSubmitting(true);
 
     // Kombinuj kontakt osobu sa napomenom
-    let finalNote = completionForm.note.trim();
+    let completionInfo = "";
     if (completionForm.contactPerson.trim()) {
-      const contactPart = `Kontakt osoba: ${completionForm.contactPerson.trim()}`;
-      finalNote = finalNote
-        ? `${contactPart}\n\n${finalNote}`
-        : contactPart;
+      completionInfo = `Kontakt osoba: ${completionForm.contactPerson.trim()}`;
+    }
+    if (completionForm.note.trim()) {
+      completionInfo = completionInfo
+        ? `${completionInfo}\n\n${completionForm.note.trim()}`
+        : completionForm.note.trim();
+    }
+
+    // Ako već postoji napomena na posjeti, dodaj novu informaciju
+    let finalNote = "";
+    if (selectedVisit.note && selectedVisit.note.trim()) {
+      if (completionInfo) {
+        finalNote = `${selectedVisit.note.trim()}\n\n--- Dodato pri završetku posjete ---\n${completionInfo}`;
+      } else {
+        finalNote = selectedVisit.note.trim();
+      }
+    } else if (completionInfo) {
+      finalNote = completionInfo;
     }
 
     const res = await fetch("/api/visits", {
@@ -206,6 +207,7 @@ export default function CommercialVisitsPage() {
       setSelectedVisit(null);
       setCompletionForm({ contactPerson: "", note: "" });
       await load();
+      showToast("Posjeta je uspješno označena kao završena.", "success");
     } else {
       const err = await res.text();
       showToast("Greška: " + err, "error");
@@ -531,7 +533,7 @@ export default function CommercialVisitsPage() {
         </div>
       </div>
 
-      {/* Modal za završavanje posjete (samo za posjete od managera) */}
+      {/* Modal za završavanje posjete - omogućava dodavanje kontakt osobe i napomene */}
       {completionModalOpen && selectedVisit &&
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -542,6 +544,9 @@ export default function CommercialVisitsPage() {
                   <p className="text-xs text-slate-500">
                     {selectedVisit.client.name} -{" "}
                     {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA")}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Dodajte informacije o kontakt osobi i napomenu o posjeti
                   </p>
                   {selectedVisit.branches && selectedVisit.branches.length > 0 && (
                     <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
@@ -572,7 +577,7 @@ export default function CommercialVisitsPage() {
               <form onSubmit={onCompleteVisit} className="px-6 py-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-slate-600">
-                    S kojom osobom ste razgovarali *
+                    Kontakt osoba (s kim ste razgovarali)
                   </label>
                   <input
                     type="text"
@@ -584,8 +589,7 @@ export default function CommercialVisitsPage() {
                       }))
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    placeholder="Ime i prezime..."
-                    required
+                    placeholder="Ime i prezime kontakt osobe..."
                   />
                 </div>
                 <div>
@@ -602,7 +606,7 @@ export default function CommercialVisitsPage() {
                       }))
                     }
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    placeholder="Detalji razgovora, rezultati posjete..."
+                    placeholder="Detalji razgovora, rezultati posjete, dodatne informacije..."
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
