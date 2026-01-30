@@ -33,6 +33,10 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith("/dashboard/order-manager") && !["ORDER_MANAGER", "ADMIN"].includes(role)) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
+  // Dozvoli order_manageru pristup ruti za pregled klijenta
+  if (pathname.startsWith("/dashboard/admin/clients/") && !["ADMIN", "ORDER_MANAGER"].includes(role)) {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
   if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }

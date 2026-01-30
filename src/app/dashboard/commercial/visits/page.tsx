@@ -33,9 +33,11 @@ export default function CommercialVisitsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
   
   // State za branch dropdown
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
@@ -70,6 +72,11 @@ export default function CommercialVisitsPage() {
   const [completionForm, setCompletionForm] = useState({
     contactPerson: "",
     note: "",
+  });
+
+  const [editForm, setEditForm] = useState({
+    date: "",
+    time: "",
   });
 
   const load = async () => {
@@ -159,6 +166,49 @@ export default function CommercialVisitsPage() {
       body: JSON.stringify({ id, status }),
     });
     if (res.ok) await load();
+  };
+
+  const handleEditClick = (visit: Visit) => {
+    if (visit.status !== "PLANNED") {
+      showToast("Možete mijenjati samo planirane posjete.", "warning");
+      return;
+    }
+    setSelectedVisit(visit);
+    const scheduledDate = new Date(visit.scheduledAt);
+    setEditForm({
+      date: scheduledDate.toISOString().slice(0, 10),
+      time: scheduledDate.toTimeString().slice(0, 5),
+    });
+    setEditModalOpen(true);
+  };
+
+  const onEditVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVisit) return;
+
+    setEditSubmitting(true);
+    const scheduledAt = new Date(`${editForm.date}T${editForm.time}:00`);
+
+    const res = await fetch("/api/visits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selectedVisit.id,
+        scheduledAt: scheduledAt.toISOString(),
+      }),
+    });
+
+    setEditSubmitting(false);
+
+    if (res.ok) {
+      setEditModalOpen(false);
+      setSelectedVisit(null);
+      await load();
+      showToast("Datum i vrijeme posjete su uspješno ažurirani.", "success");
+    } else {
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
+    }
   };
 
   const onCompleteVisit = async (e: React.FormEvent) => {
@@ -390,6 +440,7 @@ export default function CommercialVisitsPage() {
                           {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
                             hour: "2-digit",
                             minute: "2-digit",
+                            hour12: false,
                           })}
                         </span>
                       </div>
@@ -417,6 +468,15 @@ export default function CommercialVisitsPage() {
                     </div>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      {v.status === "PLANNED" && (
+                        <button
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                          onClick={() => handleEditClick(v)}
+                          title="Promijeni datum i vrijeme"
+                        >
+                          ✏️ Uredi
+                        </button>
+                      )}
                       {v.status !== "DONE" && (
                         <button
                           className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
@@ -467,6 +527,7 @@ export default function CommercialVisitsPage() {
                           {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
                             hour: "2-digit",
                             minute: "2-digit",
+                            hour12: false,
                           })}
                         </div>
                       </td>
@@ -506,6 +567,15 @@ export default function CommercialVisitsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
+                          {v.status === "PLANNED" && (
+                            <button
+                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                              onClick={() => handleEditClick(v)}
+                              title="Promijeni datum i vrijeme"
+                            >
+                              ✏️ Uredi
+                            </button>
+                          )}
                           {v.status !== "DONE" && (
                             <button
                               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
@@ -543,7 +613,14 @@ export default function CommercialVisitsPage() {
                   <h2 className="text-lg font-semibold">Završi posjetu</h2>
                   <p className="text-xs text-slate-500">
                     {selectedVisit.client.name} -{" "}
-                    {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA")}
+                    {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
                     Dodajte informacije o kontakt osobi i napomenu o posjeti
@@ -1032,6 +1109,84 @@ export default function CommercialVisitsPage() {
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
                   >
                     {submitting ? "Spremam..." : "Dodaj posjetu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal za editovanje datuma i vremena posjete */}
+      {editModalOpen && selectedVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Promijeni datum i vrijeme</h2>
+                  <p className="text-xs text-slate-500">
+                    {selectedVisit.client.name}
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setEditModalOpen(false);
+                    setSelectedVisit(null);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={onEditVisit} className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-slate-600">
+                      Datum posjete *
+                    </label>
+                    <input
+                      type="date"
+                      value={editForm.date}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, date: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-600">
+                      Vrijeme *
+                    </label>
+                    <input
+                      type="time"
+                      value={editForm.time}
+                      onChange={(e) =>
+                        setEditForm((f) => ({ ...f, time: e.target.value }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => {
+                      setEditModalOpen(false);
+                      setSelectedVisit(null);
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editSubmitting}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+                  >
+                    {editSubmitting ? "Spremam..." : "Spremi promjene"}
                   </button>
                 </div>
               </form>

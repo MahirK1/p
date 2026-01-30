@@ -256,8 +256,13 @@ export async function PATCH(req: NextRequest) {
     id,
     status,
     note,
-  }: { id: string; status?: "PLANNED" | "DONE" | "CANCELED"; note?: string } =
-    body;
+    scheduledAt,
+  }: { 
+    id: string; 
+    status?: "PLANNED" | "DONE" | "CANCELED"; 
+    note?: string;
+    scheduledAt?: string;
+  } = body;
 
   if (!id) {
     return NextResponse.json(
@@ -284,6 +289,7 @@ export async function PATCH(req: NextRequest) {
     data: {
       status: status ?? existing.status,
       note: note ?? existing.note,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : existing.scheduledAt,
     },
     include: { 
       client: true, 
@@ -303,6 +309,7 @@ export async function PATCH(req: NextRequest) {
     metadata: {
       status: visit.status,
       note: visit.note,
+      scheduledAt: visit.scheduledAt,
     },
   });
 

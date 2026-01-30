@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -59,7 +60,93 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(clients);
 }
 
-// DODAJ PUT metodu za update klijenta
+// POST - kreiraj novog klijenta
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) return new NextResponse("Unauthorized", { status: 401 });
+
+  const user = session.user as any;
+  // Dozvoli samo ADMIN korisnicima da kreiraju klijente ručno
+  if (user.role !== "ADMIN") {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  const body = await req.json();
+  const {
+    name,
+    address,
+    city,
+    phone,
+    email,
+    contactPerson,
+    note,
+    matBroj,
+    pdvBroj,
+  } = body;
+
+  if (!name || !name.trim()) {
+    return NextResponse.json(
+      { error: "Naziv klijenta je obavezan." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const newClient = await prisma.client.create({
+      data: {
+        name: name.trim(),
+        address: address?.trim() || null,
+        city: city?.trim() || null,
+        phone: phone?.trim() || null,
+        email: email?.trim() || null,
+        contactPerson: contactPerson?.trim() || null,
+        note: note?.trim() || null,
+        matBroj: matBroj?.trim() || null,
+        pdvBroj: pdvBroj?.trim() || null,
+      },
+      include: {
+        branches: {
+          orderBy: { name: "asc" },
+        },
+      },
+    });
+
+    // Audit log
+    await logAudit(req, user, {
+      action: "CREATE_CLIENT",
+      entityType: "Client",
+      entityId: newClient.id,
+      metadata: {
+        name: newClient.name,
+        address: newClient.address,
+        city: newClient.city,
+        phone: newClient.phone,
+        email: newClient.email,
+        contactPerson: newClient.contactPerson,
+        note: newClient.note,
+      },
+    });
+
+    return NextResponse.json(newClient, { status: 201 });
+  } catch (error: any) {
+    console.error("Error creating client:", error);
+    
+    // Provjeri da li je greška zbog unique constraint-a
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Klijent sa tim nazivom već postoji." },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Greška pri kreiranju klijenta." },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT metoda za update klijenta
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
