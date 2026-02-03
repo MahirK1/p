@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useMemo, useCallback } from "react";
 import {
   HomeIcon,
   ClipboardDocumentListIcon,
@@ -25,30 +26,71 @@ type SidebarProps = {
 export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: SidebarProps = {}) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const role = (session?.user as any)?.role;
-  const userName = (session?.user as any)?.name;
+  
+  // Memoiziraj session.user da se ne mijenja referenca svaki put
+  const sessionUser = useMemo(() => {
+    try {
+      return session?.user;
+    } catch {
+      return undefined;
+    }
+  }, [session?.user]);
+  
+  // Memoiziraj role i userName da se ne računaju svaki put
+  const role = useMemo(() => {
+    try {
+      return (sessionUser as any)?.role;
+    } catch {
+      return undefined;
+    }
+  }, [sessionUser]);
+  
+  const userName = useMemo(() => {
+    try {
+      return (sessionUser as any)?.name;
+    } catch {
+      return undefined;
+    }
+  }, [sessionUser]);
+  
+  // Memoiziraj session check da se ne mijenja svaki put
+  const hasSession = useMemo(() => {
+    try {
+      return !!session;
+    } catch {
+      return false;
+    }
+  }, [session]);
 
-  const getLinkClass = (href: string) => {
-    const isActive = pathname != null && (pathname === href || pathname.startsWith(href + "/"));
-    return `flex items-center gap-2 py-2 px-2 rounded transition ${
-      collapsed ? "justify-center" : ""
-    } ${
-      isActive
-        ? "bg-slate-800 text-white font-medium"
-        : "hover:bg-slate-800 text-slate-300"
-    }`;
-  };
+  // Memoiziraj getLinkClass funkciju da se ne kreira svaki put
+  const getLinkClass = useCallback((href: string) => {
+    try {
+      const isActive = pathname != null && (pathname === href || pathname.startsWith(href + "/"));
+      return `flex items-center gap-2 py-2 px-2 rounded transition ${
+        collapsed ? "justify-center" : ""
+      } ${
+        isActive
+          ? "bg-slate-800 text-white font-medium"
+          : "hover:bg-slate-800 text-slate-300"
+      }`;
+    } catch (error) {
+      console.error("Error in getLinkClass:", error);
+      return `flex items-center gap-2 py-2 px-2 rounded transition ${
+        collapsed ? "justify-center" : ""
+      } hover:bg-slate-800 text-slate-300`;
+    }
+  }, [pathname, collapsed]);
 
   // Handler koji se poziva kada se klikne na link
-  const handleLinkClick = () => {
+  const handleLinkClick = useCallback(() => {
     if (onLinkClick) {
       onLinkClick();
     }
-  };
+  }, [onLinkClick]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await signOut({ callbackUrl: "/login", redirect: true });
-  };
+  }, []);
 
   return (
     <aside className={`flex flex-col h-screen bg-slate-900 text-white transition-all duration-300 ${
@@ -82,7 +124,7 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
           )}
         </div>
         
-        {session && !collapsed && (
+        {hasSession && !collapsed && (
           <div className="px-2 py-2 text-xs text-slate-400 border-b border-slate-800">
             <p className="font-medium text-slate-300 truncate">{userName}</p>
             <p className="text-slate-500 capitalize">{role?.toLowerCase()}</p>

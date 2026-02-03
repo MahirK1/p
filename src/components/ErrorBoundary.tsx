@@ -52,7 +52,7 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               Osvježi stranicu
             </button>
-            {process.env.NODE_ENV === "development" && this.state.error && (
+            {this.state.error && (
               <details className="mt-4">
                 <summary className="cursor-pointer text-xs text-slate-500">
                   Detalji greške (samo u development modu)
