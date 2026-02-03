@@ -16,6 +16,12 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to");
   const commercialId = searchParams.get("commercialId");
   const clientId = searchParams.get("clientId");
+  const status = searchParams.get("status");
+  
+  // Paginacija
+  const page = Number(searchParams.get("page") || "1");
+  const limit = Number(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
 
   const where: any = {};
   if (from && to) {
@@ -25,13 +31,19 @@ export async function GET(req: NextRequest) {
     };
   }
   if (clientId) where.clientId = clientId;
+  if (status && ["PLANNED", "DONE", "CANCELED"].includes(status)) {
+    where.status = status;
+  }
 
   // manager i admin vide sve (sa filterom), komercijalista vidi samo svoje
-  if (["MANAGER", "ADMIN"].includes(user.role) && commercialId) {
+  if (["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role) && commercialId) {
     where.commercialId = commercialId;
-  } else if (!["MANAGER", "ADMIN"].includes(user.role)) {
+  } else if (!["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role)) {
     where.commercialId = user.id;
   }
+
+  // Uzmi ukupan broj za paginaciju
+  const total = await prisma.visit.count({ where });
 
   const visits = await prisma.visit.findMany({
     where,
@@ -45,10 +57,20 @@ export async function GET(req: NextRequest) {
       commercial: true,
     },
     orderBy: { scheduledAt: "asc" },
+    skip,
+    take: limit,
   });
 
-  // Vraćamo i managerId direktno (već je u modelu)
-  return NextResponse.json(visits);
+  // Vraćamo posjete sa paginacijom
+  return NextResponse.json({
+    visits,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -282,6 +304,30 @@ export async function PATCH(req: NextRequest) {
     existing.commercialId !== user.id
   ) {
     return new NextResponse("Forbidden", { status: 403 });
+  }
+
+  // Ako se otkazuje posjeta, razlog je obavezan
+  if (status === "CANCELED" && (!note || !note.trim())) {
+    return NextResponse.json(
+      { error: "Razlog otkazivanja je obavezan." },
+      { status: 400 }
+    );
+  }
+
+  // Validacija: Otkazana posjeta ne može preći u završenu
+  if (existing.status === "CANCELED" && status === "DONE") {
+    return NextResponse.json(
+      { error: "Otkazana posjeta ne može biti označena kao završena." },
+      { status: 400 }
+    );
+  }
+
+  // Validacija: Završena posjeta ne može preći u otkazanu
+  if (existing.status === "DONE" && status === "CANCELED") {
+    return NextResponse.json(
+      { error: "Završena posjeta ne može biti otkazana." },
+      { status: 400 }
+    );
   }
 
   const visit = await prisma.visit.update({

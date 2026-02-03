@@ -229,7 +229,7 @@ export default function ManagerClientDetailPage({
       case "COMPLETED":
         return "Završeno";
       case "CANCELED":
-        return "Otkaženo";
+        return "Otkazano";
       case "PLANNED":
         return "Planirano";
       case "DONE":

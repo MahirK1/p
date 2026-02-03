@@ -26,6 +26,12 @@ export async function GET(req: NextRequest) {
       },
     });
     if (!order) return new NextResponse("Not found", { status: 404 });
+    
+    // Provjeri dozvole - komercijalista može vidjeti samo svoje narudžbe
+    if (user && user.role === "COMMERCIAL" && order.commercialId !== user.id) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+    
     return NextResponse.json(order);
   }
 

@@ -12,6 +12,7 @@ enum UserRole {
   MANAGER
   ORDER_MANAGER
   ADMIN
+  DIRECTOR
 }
 
 enum OrderStatus {
@@ -45,6 +46,8 @@ model User {
   chatMemberships ChatRoomMember[]
   pushSubscription PushSubscription?
   auditLogs      AuditLog[]
+  doctorVisits    DoctorVisit[]
+  canAccessDoctorVisits Boolean @default(false)
 }
 
 model Client {
@@ -276,4 +279,21 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
+}
+
+model DoctorVisit {
+  id          String   @id @default(cuid())
+  commercialId String
+  commercial   User     @relation(fields: [commercialId], references: [id])
+  firstName   String
+  lastName    String
+  institution String
+  contactNumber String?
+  email       String?
+  scheduledAt DateTime
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("doctor_visits")
 }

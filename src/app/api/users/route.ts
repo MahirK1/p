@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
       email: true,
       role: true,
       createdAt: true,
+      canAccessDoctorVisits: true,
     },
     orderBy: { name: "asc" },
   });
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
       email: true,
       role: true,
       createdAt: true,
+      canAccessDoctorVisits: true,
     },
   });
 
@@ -124,7 +126,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { id, name, email, role, password } = body;
+  const { id, name, email, role, password, canAccessDoctorVisits } = body;
 
   if (!id || !name || !email || !role) {
     return NextResponse.json(
@@ -155,6 +157,10 @@ export async function PUT(req: NextRequest) {
     updateData.password = await hash(password, 10);
   }
 
+  if (canAccessDoctorVisits !== undefined) {
+    updateData.canAccessDoctorVisits = Boolean(canAccessDoctorVisits);
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id },
     data: updateData,
@@ -164,6 +170,7 @@ export async function PUT(req: NextRequest) {
       email: true,
       role: true,
       createdAt: true,
+      canAccessDoctorVisits: true,
     },
   });
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Pagination } from "@/components/ui/Pagination";
 
 type ClientBranch = {
   id: string;
@@ -32,6 +34,12 @@ export default function ManagerVisitsPage() {
   const [commercials, setCommercials] = useState<User[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Paginacija
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalVisits, setTotalVisits] = useState(0);
+  const itemsPerPage = 50;
 
   const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [to, setTo] = useState(() => {
@@ -41,6 +49,12 @@ export default function ManagerVisitsPage() {
   });
   const [filterCommercial, setFilterCommercial] = useState("");
   const [filterClient, setFilterClient] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  
+  // Searchable dropdown za filter klijenta
+  const [filterClientSearch, setFilterClientSearch] = useState("");
+  const [filterClientDropdownOpen, setFilterClientDropdownOpen] = useState(false);
+  const filterClientDropdownRef = useRef<HTMLDivElement>(null);
 
   // Dodaj state za searchable dropdown
   const [clientSearch, setClientSearch] = useState("");
@@ -62,29 +76,60 @@ export default function ManagerVisitsPage() {
     note: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
+  const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<Visit | null>(null);
+  const [cancellationSubmitting, setCancellationSubmitting] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
 
   const load = async () => {
     setLoading(true);
+    let visitsUrl = `/api/visits?from=${from}&to=${to}&page=${currentPage}&limit=${itemsPerPage}`;
+    if (filterCommercial) {
+      visitsUrl += `&commercialId=${filterCommercial}`;
+    }
+    if (filterClient) {
+      visitsUrl += `&clientId=${filterClient}`;
+    }
+    if (filterStatus) {
+      visitsUrl += `&status=${filterStatus}`;
+    }
+    
     const [clientsRes, visitsRes, usersRes] = await Promise.all([
       fetch("/api/clients"),
-      fetch(`/api/visits?from=${from}&to=${to}`),
+      fetch(visitsUrl),
       fetch("/api/users?role=COMMERCIAL"),
     ]);
-    const [clientsData, visitsData, usersData] = await Promise.all([
+    const [clientsData, visitsResponse, usersData] = await Promise.all([
       clientsRes.json(),
       visitsRes.json(),
       usersRes.json(),
     ]);
     setClients(clientsData);
-    setVisits(visitsData);
+    
+    // Handle paginated response
+    if (visitsResponse.visits) {
+      setVisits(visitsResponse.visits);
+      setTotalPages(visitsResponse.pagination.totalPages);
+      setTotalVisits(visitsResponse.pagination.total);
+    } else {
+      // Fallback za stari format (ako API još nije ažuriran)
+      setVisits(visitsResponse);
+      setTotalPages(1);
+      setTotalVisits(visitsResponse.length);
+    }
+    
     setCommercials(usersData);
     setLoading(false);
   };
 
   useEffect(() => {
+    setCurrentPage(1); // Reset na prvu stranicu kada se promijene filteri
+  }, [from, to, filterCommercial, filterClient, filterStatus]);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to]);
+  }, [from, to, filterCommercial, filterClient, filterStatus, currentPage]);
 
   // Zatvori dropdown kada klikneš van njega
   useEffect(() => {
@@ -95,13 +140,32 @@ export default function ManagerVisitsPage() {
       if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
         setBranchDropdownOpen(false);
       }
+      if (filterClientDropdownRef.current && !filterClientDropdownRef.current.contains(event.target as Node)) {
+        setFilterClientDropdownOpen(false);
+      }
     }
 
-    if (clientDropdownOpen || branchDropdownOpen) {
+    if (clientDropdownOpen || branchDropdownOpen || filterClientDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [clientDropdownOpen, branchDropdownOpen]);
+  }, [clientDropdownOpen, branchDropdownOpen, filterClientDropdownOpen]);
+  
+  // Filtrirani klijenti za filter dropdown
+  const filteredClientsForFilter = useMemo(() => {
+    if (!filterClientSearch.trim()) return clients;
+    const term = filterClientSearch.toLowerCase();
+    return clients.filter((c) =>
+      c.name.toLowerCase().includes(term)
+    );
+  }, [clients, filterClientSearch]);
+  
+  const handleFilterClientSelect = (clientId: string) => {
+    setFilterClient(clientId);
+    const client = clients.find((c) => c.id === clientId);
+    setFilterClientSearch(client?.name || "");
+    setFilterClientDropdownOpen(false);
+  };
 
   // Filtrirani klijenti za pretragu
   const filteredClients = useMemo(() => {
@@ -123,16 +187,11 @@ export default function ManagerVisitsPage() {
     return selectedClient.branches;
   }, [selectedClient]);
 
-  const filteredVisits = useMemo(() => {
-    return visits.filter((v) => {
-      if (filterCommercial && v.commercial.id !== filterCommercial) return false;
-      if (filterClient && v.client.id !== filterClient) return false;
-      return true;
-    });
-  }, [visits, filterCommercial, filterClient]);
+  // Filteri se sada primjenjuju na serveru, ali zadržavamo ovu logiku za slučaj da API ne podržava sve filtere
+  const filteredVisits = visits;
 
   const statusLabel = (s: Visit["status"]) =>
-    s === "PLANNED" ? "Planirano" : s === "DONE" ? "Završeno" : "Otkaženo";
+    s === "PLANNED" ? "Planirano" : s === "DONE" ? "Završeno" : "Otkazano";
 
   const statusColor = (s: Visit["status"]) =>
     s === "PLANNED"
@@ -178,7 +237,80 @@ export default function ManagerVisitsPage() {
     }
   };
 
+  const handleCancelClick = (visit: Visit) => {
+    // Ne dozvoli otkazivanje završene posjete
+    if (visit.status === "DONE") {
+      showToast("Završena posjeta ne može biti otkazana.", "warning");
+      return;
+    }
+    setSelectedVisitForCancel(visit);
+    setCancellationReason("");
+    setCancellationModalOpen(true);
+  };
+
+  const onCancelVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVisitForCancel) return;
+
+    if (!cancellationReason.trim()) {
+      showToast("Razlog otkazivanja je obavezan.", "warning");
+      return;
+    }
+
+    setCancellationSubmitting(true);
+
+    // Dodaj razlog otkazivanja u napomenu
+    const cancellationNote = `--- RAZLOG OTKAZIVANJA ---\n${cancellationReason.trim()}`;
+    let finalNote = cancellationNote;
+    if (selectedVisitForCancel.note && selectedVisitForCancel.note.trim()) {
+      finalNote = `${selectedVisitForCancel.note.trim()}\n\n${cancellationNote}`;
+    }
+
+    const res = await fetch("/api/visits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selectedVisitForCancel.id,
+        status: "CANCELED",
+        note: finalNote,
+      }),
+    });
+
+    setCancellationSubmitting(false);
+
+    if (res.ok) {
+      setCancellationModalOpen(false);
+      setSelectedVisitForCancel(null);
+      setCancellationReason("");
+      await load();
+      showToast("Posjeta je uspješno otkazana.", "success");
+    } else {
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
+    }
+  };
+
   const updateStatus = async (id: string, status: Visit["status"]) => {
+    if (status === "CANCELED") {
+      // Ne dozvoli direktno otkazivanje bez razloga
+      return;
+    }
+    
+    // Provjeri trenutni status posjete
+    const visit = visits.find((v) => v.id === id);
+    if (visit) {
+      // Ne dozvoli prelazak iz CANCELED u DONE
+      if (visit.status === "CANCELED" && status === "DONE") {
+        showToast("Otkazana posjeta ne može biti označena kao završena.", "warning");
+        return;
+      }
+      // Ne dozvoli prelazak iz DONE u CANCELED
+      if (visit.status === "DONE" && status === "CANCELED") {
+        showToast("Završena posjeta ne može biti otkazana.", "warning");
+        return;
+      }
+    }
+    
     const res = await fetch("/api/visits", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -187,7 +319,8 @@ export default function ManagerVisitsPage() {
     if (res.ok) {
       await load();
     } else {
-      showToast("Ne mogu ažurirati status.", "error");
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
     }
   };
 
@@ -257,17 +390,64 @@ export default function ManagerVisitsPage() {
           <label className="block text-xs font-medium text-slate-500">
             Klijent
           </label>
+          <div className="relative" ref={filterClientDropdownRef}>
+            <input
+              type="text"
+              value={filterClientSearch}
+              onChange={(e) => {
+                setFilterClientSearch(e.target.value);
+                setFilterClientDropdownOpen(true);
+                if (!e.target.value.trim()) {
+                  setFilterClient("");
+                }
+              }}
+              onFocus={() => setFilterClientDropdownOpen(true)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder="Pretraži klijenta..."
+            />
+            {filterClient && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterClient("");
+                  setFilterClientSearch("");
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
+              >
+                ✕
+              </button>
+            )}
+            {filterClientDropdownOpen && filteredClientsForFilter.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
+                {filteredClientsForFilter.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleFilterClientSelect(client.id)}
+                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition text-sm ${
+                      filterClient === client.id ? "bg-blue-50" : ""
+                    }`}
+                  >
+                    {client.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500">
+            Status
+          </label>
           <select
-            value={filterClient}
-            onChange={(e) => setFilterClient(e.target.value)}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
             className="rounded-lg border border-slate-200 px-3 py-1.5"
           >
-            <option value="">Svi</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            <option value="">Svi statusi</option>
+            <option value="PLANNED">Planirano</option>
+            <option value="DONE">Završeno</option>
+            <option value="CANCELED">Otkazano</option>
           </select>
         </div>
       </div>
@@ -493,9 +673,16 @@ export default function ManagerVisitsPage() {
       {/* Lista posjeta */}
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 p-4">
-          <p className="text-sm font-medium text-slate-700">
-            Posjete u odabranom periodu
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-700">
+              Posjete u odabranom periodu
+            </p>
+            {totalVisits > 0 && (
+              <p className="text-xs text-slate-500">
+                Ukupno: {totalVisits} posjeta
+              </p>
+            )}
+          </div>
         </div>
         {loading ? (
           <div className="flex items-center justify-center p-12">
@@ -564,18 +751,22 @@ export default function ManagerVisitsPage() {
                         {v.note || "-"}
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
-                        <button
-                          className="text-xs text-emerald-600 hover:underline"
-                          onClick={() => updateStatus(v.id, "DONE")}
-                        >
-                          Označi završeno
-                        </button>
-                        <button
-                          className="text-xs text-red-600 hover:underline"
-                          onClick={() => updateStatus(v.id, "CANCELED")}
-                        >
-                          Otkaži
-                        </button>
+                        {v.status !== "CANCELED" && v.status !== "DONE" && (
+                          <button
+                            className="text-xs text-emerald-600 hover:underline"
+                            onClick={() => updateStatus(v.id, "DONE")}
+                          >
+                            Označi završeno
+                          </button>
+                        )}
+                        {v.status !== "CANCELED" && v.status !== "DONE" && (
+                          <button
+                            className="text-xs text-red-600 hover:underline"
+                            onClick={() => handleCancelClick(v)}
+                          >
+                            Otkaži
+                          </button>
+                        )}
                         <button
                           className="text-xs text-slate-400 hover:text-red-500"
                           onClick={() => removeVisit(v.id)}
@@ -643,18 +834,22 @@ export default function ManagerVisitsPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-                    <button
-                      className="text-xs text-emerald-600 hover:underline"
-                      onClick={() => updateStatus(v.id, "DONE")}
-                    >
-                      Označi završeno
-                    </button>
-                    <button
-                      className="text-xs text-red-600 hover:underline"
-                      onClick={() => updateStatus(v.id, "CANCELED")}
-                    >
-                      Otkaži
-                    </button>
+                    {v.status !== "CANCELED" && v.status !== "DONE" && (
+                      <button
+                        className="text-xs text-emerald-600 hover:underline"
+                        onClick={() => updateStatus(v.id, "DONE")}
+                      >
+                        Označi završeno
+                      </button>
+                    )}
+                    {v.status !== "CANCELED" && v.status !== "DONE" && (
+                      <button
+                        className="text-xs text-red-600 hover:underline"
+                        onClick={() => handleCancelClick(v)}
+                      >
+                        Otkaži
+                      </button>
+                    )}
                     <button
                       className="text-xs text-slate-400 hover:text-red-500"
                       onClick={() => removeVisit(v.id)}
@@ -667,7 +862,95 @@ export default function ManagerVisitsPage() {
             </div>
           </>
         )}
+        
+        {/* Paginacija */}
+        {!loading && filteredVisits.length > 0 && totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={totalVisits}
+            itemsPerPage={itemsPerPage}
+          />
+        )}
       </div>
+
+      {/* Modal za otkazivanje posjete */}
+      {cancellationModalOpen && selectedVisitForCancel &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Otkaži posjetu</h2>
+                  <p className="text-xs text-slate-500">
+                    {selectedVisitForCancel.client.name} -{" "}
+                    {new Date(selectedVisitForCancel.scheduledAt).toLocaleString("bs-BA", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </p>
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    Razlog otkazivanja je obavezan
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setCancellationModalOpen(false);
+                    setSelectedVisitForCancel(null);
+                    setCancellationReason("");
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={onCancelVisit} className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
+                    Razlog otkazivanja *
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                    placeholder="Unesite razlog otkazivanja posjete..."
+                    required
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Molimo unesite detaljan razlog zašto otkazujete ovu posjetu.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => {
+                      setCancellationModalOpen(false);
+                      setSelectedVisitForCancel(null);
+                      setCancellationReason("");
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cancellationSubmitting || !cancellationReason.trim()}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {cancellationSubmitting ? "Otkazujem..." : "Otkaži posjetu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

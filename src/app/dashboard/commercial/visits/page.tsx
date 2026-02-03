@@ -33,9 +33,11 @@ export default function CommercialVisitsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
+  const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
+  const [cancellationSubmitting, setCancellationSubmitting] = useState(false);
   
   // State za branch dropdown
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
@@ -45,6 +47,19 @@ export default function CommercialVisitsPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filteri
+  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterDateFrom, setFilterDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [filterDateTo, setFilterDateTo] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
 
   const [form, setForm] = useState({
     clientId: "",
@@ -74,16 +89,23 @@ export default function CommercialVisitsPage() {
     note: "",
   });
 
+  const [cancellationForm, setCancellationForm] = useState({
+    reason: "",
+  });
+
   const load = async () => {
     setLoading(true);
-    const from = new Date();
-    from.setDate(from.getDate() - 7);
-    const to = new Date();
-    to.setDate(to.getDate() + 30);
+    const from = new Date(filterDateFrom);
+    const to = new Date(filterDateTo);
+    to.setHours(23, 59, 59, 999);
+    
+    let url = `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`;
+    if (filterStatus) {
+      url += `&status=${filterStatus}`;
+    }
+    
     const [visitsRes, clientsRes] = await Promise.all([
-      fetch(
-        `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`
-      ),
+      fetch(url),
       fetch("/api/clients"),
     ]);
     const [visitsData, clientsData] = await Promise.all([
@@ -97,7 +119,7 @@ export default function CommercialVisitsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [filterStatus, filterDateFrom, filterDateTo]);
 
   // Zatvori dropdown kada klikneš van njega
   useEffect(() => {
@@ -144,6 +166,11 @@ export default function CommercialVisitsPage() {
   }, [selectedClient]);
 
   const handleCompleteClick = (visit: Visit) => {
+    // Ne dozvoli završavanje otkazane posjete
+    if (visit.status === "CANCELED") {
+      showToast("Otkazana posjeta ne može biti označena kao završena.", "warning");
+      return;
+    }
     // Prikaži modal za sve posjete kada se označavaju kao završene
     // Komercijalista može promijeniti datum/vrijeme, dodati kontakt osobu i napomenu
     setSelectedVisit(visit);
@@ -155,6 +182,59 @@ export default function CommercialVisitsPage() {
       note: "",
     });
     setCompletionModalOpen(true);
+  };
+
+  const handleCancelClick = (visit: Visit) => {
+    // Ne dozvoli otkazivanje završene posjete
+    if (visit.status === "DONE") {
+      showToast("Završena posjeta ne može biti otkazana.", "warning");
+      return;
+    }
+    setSelectedVisit(visit);
+    setCancellationForm({ reason: "" });
+    setCancellationModalOpen(true);
+  };
+
+  const onCancelVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVisit) return;
+
+    if (!cancellationForm.reason.trim()) {
+      showToast("Razlog otkazivanja je obavezan.", "warning");
+      return;
+    }
+
+    setCancellationSubmitting(true);
+
+    // Dodaj razlog otkazivanja u napomenu
+    const cancellationNote = `--- RAZLOG OTKAZIVANJA ---\n${cancellationForm.reason.trim()}`;
+    let finalNote = cancellationNote;
+    if (selectedVisit.note && selectedVisit.note.trim()) {
+      finalNote = `${selectedVisit.note.trim()}\n\n${cancellationNote}`;
+    }
+
+    const res = await fetch("/api/visits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: selectedVisit.id,
+        status: "CANCELED",
+        note: finalNote,
+      }),
+    });
+
+    setCancellationSubmitting(false);
+
+    if (res.ok) {
+      setCancellationModalOpen(false);
+      setSelectedVisit(null);
+      setCancellationForm({ reason: "" });
+      await load();
+      showToast("Posjeta je uspješno otkazana.", "success");
+    } else {
+      const err = await res.text();
+      showToast("Greška: " + err, "error");
+    }
   };
 
   const updateStatus = async (id: string, status: Visit["status"]) => {
@@ -334,9 +414,36 @@ export default function CommercialVisitsPage() {
 
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
         <div className="border-b border-slate-100 p-4">
-          <p className="text-sm font-medium text-slate-700">
-            Posjete u posljednjih 7 i narednih 30 dana
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm font-medium text-slate-700">
+              Posjete
+            </p>
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              />
+              <span className="text-sm text-slate-500">do</span>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="">Svi statusi</option>
+                <option value="PLANNED">Planirano</option>
+                <option value="DONE">Završeno</option>
+                <option value="CANCELED">Otkazano</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           {loading ? (
@@ -429,7 +536,7 @@ export default function CommercialVisitsPage() {
                     </div>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-100">
-                      {v.status !== "DONE" && (
+                      {v.status !== "DONE" && v.status !== "CANCELED" && (
                         <button
                           className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
                           onClick={() => handleCompleteClick(v)}
@@ -437,10 +544,10 @@ export default function CommercialVisitsPage() {
                           Završeno
                         </button>
                       )}
-                      {v.status !== "CANCELED" && (
+                      {v.status !== "CANCELED" && v.status !== "DONE" && (
                         <button
                           className="flex-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition"
-                          onClick={() => updateStatus(v.id, "CANCELED")}
+                          onClick={() => handleCancelClick(v)}
                         >
                           Otkaži
                         </button>
@@ -519,7 +626,7 @@ export default function CommercialVisitsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
-                          {v.status !== "DONE" && (
+                          {v.status !== "DONE" && v.status !== "CANCELED" && (
                             <button
                               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
                               onClick={() => handleCompleteClick(v)}
@@ -527,10 +634,10 @@ export default function CommercialVisitsPage() {
                               Završeno
                             </button>
                           )}
-                          {v.status !== "CANCELED" && (
+                          {v.status !== "CANCELED" && v.status !== "DONE" && (
                             <button
                               className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition"
-                              onClick={() => updateStatus(v.id, "CANCELED")}
+                              onClick={() => handleCancelClick(v)}
                             >
                               Otkaži
                             </button>
@@ -676,6 +783,86 @@ export default function CommercialVisitsPage() {
                     className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
                   >
                     {completionSubmitting ? "Spremam..." : "Završi posjetu"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal za otkazivanje posjete */}
+      {cancellationModalOpen && selectedVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 sticky top-0 bg-white">
+                <div>
+                  <h2 className="text-lg font-semibold">Otkaži posjetu</h2>
+                  <p className="text-xs text-slate-500">
+                    {selectedVisit.client.name} -{" "}
+                    {new Date(selectedVisit.scheduledAt).toLocaleString("bs-BA", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </p>
+                  <p className="text-xs text-red-600 mt-1 font-medium">
+                    Razlog otkazivanja je obavezan
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    setCancellationModalOpen(false);
+                    setSelectedVisit(null);
+                    setCancellationForm({ reason: "" });
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={onCancelVisit} className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">
+                    Razlog otkazivanja *
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={cancellationForm.reason}
+                    onChange={(e) =>
+                      setCancellationForm({ ...cancellationForm, reason: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                    placeholder="Unesite razlog otkazivanja posjete..."
+                    required
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Molimo unesite detaljan razlog zašto otkazujete ovu posjetu.
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => {
+                      setCancellationModalOpen(false);
+                      setSelectedVisit(null);
+                      setCancellationForm({ reason: "" });
+                    }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={cancellationSubmitting || !cancellationForm.reason.trim()}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ color: 'var(--color-red-700)' }}
+                  >
+                    {cancellationSubmitting ? "Otkazujem..." : "Otkaži posjetu"}
                   </button>
                 </div>
               </form>

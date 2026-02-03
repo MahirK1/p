@@ -11,6 +11,7 @@ export default async function DashboardRootPage() {
   if (role === "COMMERCIAL") redirect("/dashboard/commercial");
   if (role === "MANAGER") redirect("/dashboard/manager");
   if (role === "ORDER_MANAGER") redirect("/dashboard/order-manager");
+  if (role === "DIRECTOR") redirect("/dashboard/director");
   if (role === "ADMIN") redirect("/dashboard/admin");
 
   redirect("/login");

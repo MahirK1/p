@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
-type ManagerAnalytics = {
+type DirectorAnalytics = {
   year: number;
   month: number;
   totalSales: number;
@@ -161,10 +161,10 @@ type Commercial = {
   name: string;
 };
 
-export default function ManagerDashboardPage() {
+export default function DirectorDashboardPage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const [data, setData] = useState<ManagerAnalytics | null>(null);
+  const [data, setData] = useState<DirectorAnalytics | null>(null);
   const [commercials, setCommercials] = useState<Commercial[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -187,7 +187,7 @@ export default function ManagerDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const url = `/api/analytics/manager?year=${selectedYear}&month=${selectedMonth}${
+      const url = `/api/analytics/director?year=${selectedYear}&month=${selectedMonth}${
         selectedCommercialId ? `&commercialId=${selectedCommercialId}` : ""
       }`;
       const res = await fetch(url);
@@ -212,7 +212,6 @@ export default function ManagerDashboardPage() {
     loadData();
   }, [selectedMonth, selectedYear, selectedCommercialId]);
 
-  // useMemo MORA biti pozvan PRIJE uvjetnog return statementa
   const filteredCommercials = useMemo(() => {
     if (!data || !data.salesByCommercial) {
       return [];
@@ -241,7 +240,7 @@ export default function ManagerDashboardPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `analitika_${selectedYear}_${selectedMonth}.csv`);
+    link.setAttribute("download", `analitika_direktor_${selectedYear}_${selectedMonth}.csv`);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -270,28 +269,17 @@ export default function ManagerDashboardPage() {
   const maxWeekdaySales = Math.max(...data.salesByWeekday.map((d) => d.amount), 1);
 
   const monthNames = [
-    "Januar",
-    "Februar",
-    "Mart",
-    "April",
-    "Maj",
-    "Juni",
-    "Juli",
-    "Avgust",
-    "Septembar",
-    "Oktobar",
-    "Novembar",
-    "Decembar",
+    "Januar", "Februar", "Mart", "April", "Maj", "Juni",
+    "Juli", "Avgust", "Septembar", "Oktobar", "Novembar", "Decembar",
   ];
 
   const weekdayNames = ["Nedelja", "Ponedeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota"];
 
   return (
     <div className="space-y-6">
-      {/* Header sa filterima */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Analitika i statistika</h1>
+          <h1 className="text-2xl font-semibold">Dashboard - Analitika</h1>
           <p className="text-sm text-slate-500">
             Detaljna analiza rada komercijale na terenu
           </p>
@@ -337,7 +325,6 @@ export default function ManagerDashboardPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200">
         {[
           { id: "overview", label: "Pregled" },
@@ -360,7 +347,6 @@ export default function ManagerDashboardPage() {
         ))}
       </div>
 
-      {/* KPI kartice */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
           <p className="text-xs font-medium text-slate-500">Ukupna prodaja</p>
@@ -418,702 +404,167 @@ export default function ManagerDashboardPage() {
         </div>
       </div>
 
-      {activeTab === "overview" && (
-        <>
-          {/* Grid sa Prodajom po danima i Posjetama po danima */}
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Prodaja po danima */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">
-                Prodaja po danima
-              </h2>
-              <div className="space-y-2">
-                {data.salesByDay.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nema prodaje u ovom periodu.</p>
-                ) : (
-                  data.salesByDay.map((d) => (
-                    <div key={d.date} className="flex items-center gap-3">
-                      <span className="w-20 text-sm text-slate-600">
-                        {new Date(d.date).toLocaleDateString("bs-BA", {
-                          day: "2-digit",
-                          month: "2-digit",
-                        })}
-                      </span>
-                      <div className="flex-1 rounded-full bg-slate-100">
-                        <div
-                          className="h-6 rounded-full bg-emerald-500 transition-all"
-                          style={{
-                            width: `${Math.min(100, (d.amount / maxSalesDay) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="w-20 text-right text-sm font-semibold text-slate-900">
-                        {d.amount.toFixed(2)} KM
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Posjete po danima */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-slate-900">
-                Posjete po danima
-              </h2>
-              <div className="space-y-2">
-                {data.visitsByDay.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nema posjeta u ovom periodu.</p>
-                ) : (
-                  data.visitsByDay.map((d) => (
-                    <div key={d.date} className="flex items-center gap-3">
-                      <span className="w-20 text-sm text-slate-600">
-                        {new Date(d.date).toLocaleDateString("bs-BA", {
-                          day: "2-digit",
-                          month: "2-digit",
-                        })}
-                      </span>
-                      <div className="flex-1 space-y-1">
-                        {d.planned > 0 && (
-                          <div className="flex items-center gap-2">
-                            <span className="w-12 text-xs text-slate-500">Plan:</span>
-                            <div className="flex-1 rounded-full bg-slate-100">
-                              <div
-                                className="h-3 rounded-full bg-blue-400"
-                                style={{
-                                  width: `${Math.min(100, (d.planned / maxVisits) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="w-6 text-xs font-medium text-slate-700">
-                              {d.planned}
-                            </span>
-                          </div>
-                        )}
-                        {d.done > 0 && (
-                          <div className="flex items-center gap-2">
-                            <span className="w-12 text-xs text-slate-500">Gotovo:</span>
-                            <div className="flex-1 rounded-full bg-slate-100">
-                              <div
-                                className="h-3 rounded-full bg-emerald-500"
-                                style={{
-                                  width: `${Math.min(100, (d.done / maxVisits) * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="w-6 text-xs font-medium text-slate-700">
-                              {d.done}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+      {activeTab === "commercials" && data.achievementByCommercial.length > 0 && (
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-4">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Realizacija planova - Detaljno
+            </h2>
           </div>
+          <div className="hidden md:block">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left">Komercijalista</th>
+                  <th className="px-4 py-3 text-right">Target</th>
+                  <th className="px-4 py-3 text-right">Ostvareno</th>
+                  <th className="px-4 py-3 text-right">Postotak</th>
+                  <th className="px-4 py-3 text-right">Preostalo</th>
+                  <th className="px-4 py-3 text-right">Trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.achievementByCommercial.map((ach, idx) => (
+                  <tr
+                    key={`${ach.commercialId}-${idx}`}
+                    className="border-t border-slate-100 hover:bg-slate-50 transition"
+                  >
+                    <td className="px-4 py-3 font-medium text-slate-800">
+                      {ach.commercial}
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {ach.target.toFixed(2)} KM
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                      {ach.achieved.toFixed(2)} KM
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
+                          ach.percentage >= 100
+                            ? "bg-emerald-100 text-emerald-700"
+                            : ach.percentage >= 80
+                            ? "bg-blue-100 text-blue-700"
+                            : ach.percentage >= 50
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {ach.percentage.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-slate-600">
+                      {Math.max(0, ach.target - ach.achieved).toFixed(2)} KM
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {ach.percentage >= 100 ? (
+                        <span className="text-emerald-600">✓ Postignuto</span>
+                      ) : ach.percentage >= 80 ? (
+                        <span className="text-blue-600">→ Blizu</span>
+                      ) : (
+                        <span className="text-amber-600">⚠ U toku</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-          {/* Aktivnost po danima u sedmici */}
+      {/* Dodaj ostale tabove slično kao u manager dashboardu */}
+      {activeTab === "overview" && (
+        <div className="grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">
-              Aktivnost po danima u sedmici
+              Prodaja po danima
             </h2>
-            <div className="space-y-3">
-              {data.salesByWeekday.map((d) => (
-                <div key={d.day}>
-                  <div className="mb-1 flex items-center justify-between text-sm">
-                    <span className="font-medium text-slate-800">
-                      {weekdayNames[d.day]}
+            <div className="space-y-2">
+              {data.salesByDay.length === 0 ? (
+                <p className="text-sm text-slate-500">Nema prodaje u ovom periodu.</p>
+              ) : (
+                data.salesByDay.map((d) => (
+                  <div key={d.date} className="flex items-center gap-3">
+                    <span className="w-20 text-sm text-slate-600">
+                      {new Date(d.date).toLocaleDateString("bs-BA", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
                     </span>
-                    <div className="flex items-center gap-4 text-xs text-slate-600">
-                      <span>{d.amount.toFixed(2)} KM</span>
-                      <span>{d.orders} narudžbi</span>
-                      <span>{d.visits} posjeta</span>
-                    </div>
-                  </div>
-                  <div className="rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full bg-blue-500"
-                      style={{
-                        width: `${Math.min(100, (d.amount / maxWeekdaySales) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {activeTab === "commercials" && (
-        <>
-          {/* Performance Ranking */}
-          {data.performanceRanking.length > 0 && (
-            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-6 py-4">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Performance Ranking
-                </h2>
-              </div>
-              {/* Desktop table view */}
-              <div className="hidden md:block">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Rang</th>
-                      <th className="px-4 py-3 text-left">Komercijalista</th>
-                      <th className="px-4 py-3 text-right">Prodaja</th>
-                      <th className="px-4 py-3 text-right">Narudžbe</th>
-                      <th className="px-4 py-3 text-right">Posjete</th>
-                      <th className="px-4 py-3 text-right">Konverzija</th>
-                      <th className="px-4 py-3 text-right">Realizacija</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.performanceRanking.map((com) => (
-                      <tr
-                        key={com.commercialId}
-                        className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
-                        onClick={() =>
-                          router.push(
-                            `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
-                          )
-                        }
-                      >
-                        <td className="px-4 py-3">
-                          {com.rank <= 3 ? (
-                            <span
-                              className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                com.rank === 1
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : com.rank === 2
-                                  ? "bg-slate-100 text-slate-700"
-                                  : "bg-amber-100 text-amber-700"
-                              }`}
-                            >
-                              {com.rank}
-                            </span>
-                          ) : (
-                            <span className="text-slate-600">{com.rank}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 font-medium text-slate-800">
-                          {com.commercial}
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                          {com.amount.toFixed(2)} KM
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {com.ordersCount}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {com.visitsDone} / {com.visitsCount}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="font-medium text-emerald-600">
-                            {com.conversionRate.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="font-medium text-blue-600">
-                            {com.visitCompletionRate.toFixed(1)}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile card view */}
-              <div className="md:hidden space-y-3 p-4">
-                {data.performanceRanking.map((com) => (
-                  <div
-                    key={com.commercialId}
-                    onClick={() =>
-                      router.push(
-                        `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
-                      )
-                    }
-                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {com.rank <= 3 ? (
-                          <span
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold flex-shrink-0 ${
-                              com.rank === 1
-                                ? "bg-yellow-100 text-yellow-700"
-                                : com.rank === 2
-                                ? "bg-slate-100 text-slate-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {com.rank}
-                          </span>
-                        ) : (
-                          <span className="text-slate-600 font-semibold flex-shrink-0">{com.rank}.</span>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-slate-800 truncate">
-                            {com.commercial}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
-                      <div>
-                        <span className="text-slate-500">Prodaja: </span>
-                        <span className="font-semibold text-slate-800">{com.amount.toFixed(2)} KM</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Narudžbe: </span>
-                        <span className="text-slate-800">{com.ordersCount}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Posjete: </span>
-                        <span className="text-slate-800">{com.visitsDone} / {com.visitsCount}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Konverzija: </span>
-                        <span className="font-medium text-emerald-600">{com.conversionRate.toFixed(1)}%</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-slate-500">Realizacija: </span>
-                        <span className="font-medium text-blue-600">{com.visitCompletionRate.toFixed(1)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Prodaja po komercijalisti */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Prodaja po komercijalisti
-              </h2>
-            </div>
-            {/* Desktop table view */}
-            <div className="hidden md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Komercijalista</th>
-                    <th className="px-4 py-3 text-right">Prodaja</th>
-                    <th className="px-4 py-3 text-right">Narudžbe</th>
-                    <th className="px-4 py-3 text-right">Prosjek narudžbe</th>
-                    <th className="px-4 py-3 text-right">Posjete</th>
-                    <th className="px-4 py-3 text-right">Konverzija</th>
-                    <th className="px-4 py-3 text-right">Prosjek dana</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCommercials.map((com) => (
-                    <tr
-                      key={com.commercialId}
-                      className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
-                      onClick={() =>
-                        router.push(
-                          `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
-                        )
-                      }
-                    >
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {com.commercial}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                        {com.amount.toFixed(2)} KM
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {com.ordersCount}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {com.avgOrderValue.toFixed(2)} KM
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {com.visitsDone} / {com.visitsCount}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="font-medium text-emerald-600">
-                          {com.visitsDone > 0
-                            ? ((com.visitsWithOrders / com.visitsDone) * 100).toFixed(1)
-                            : 0}
-                          %
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {com.avgDaysToOrder > 0
-                          ? com.avgDaysToOrder.toFixed(1)
-                          : "-"}{" "}
-                        dana
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile card view */}
-            <div className="md:hidden space-y-3 p-4">
-              {filteredCommercials.map((com) => (
-                <div
-                  key={com.commercialId}
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
-                    )
-                  }
-                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
-                >
-                  <div className="font-medium text-slate-800 mb-2">
-                    {com.commercial}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
-                    <div>
-                      <span className="text-slate-500">Prodaja: </span>
-                      <span className="font-semibold text-slate-800">{com.amount.toFixed(2)} KM</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Narudžbe: </span>
-                      <span className="text-slate-800">{com.ordersCount}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Prosjek: </span>
-                      <span className="text-slate-800">{com.avgOrderValue.toFixed(2)} KM</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Posjete: </span>
-                      <span className="text-slate-800">{com.visitsDone} / {com.visitsCount}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Konverzija: </span>
-                      <span className="font-medium text-emerald-600">
-                        {com.visitsDone > 0
-                          ? ((com.visitsWithOrders / com.visitsDone) * 100).toFixed(1)
-                          : 0}%
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Prosjek dana: </span>
-                      <span className="text-slate-800">
-                        {com.avgDaysToOrder > 0 ? com.avgDaysToOrder.toFixed(1) : "-"} d
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Achievement po komercijalisti */}
-          {data.achievementByCommercial.length > 0 && (
-            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-6 py-4">
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Realizacija planova
-                </h2>
-              </div>
-              {/* Desktop table view */}
-              <div className="hidden md:block">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Komercijalista</th>
-                      <th className="px-4 py-3 text-right">Target</th>
-                      <th className="px-4 py-3 text-right">Ostvareno</th>
-                      <th className="px-4 py-3 text-right">Postotak</th>
-                      <th className="px-4 py-3 text-right">Preostalo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.achievementByCommercial.map((ach, idx) => (
-                      <tr
-                        key={`${ach.commercialId}-${idx}`}
-                        className="border-t border-slate-100 hover:bg-slate-50 transition"
-                      >
-                        <td className="px-4 py-3 font-medium text-slate-800">
-                          {ach.commercial}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {ach.target.toFixed(2)} KM
-                        </td>
-                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                          {ach.achieved.toFixed(2)} KM
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${
-                              ach.percentage >= 100
-                                ? "bg-emerald-100 text-emerald-700"
-                                : ach.percentage >= 80
-                                ? "bg-blue-100 text-blue-700"
-                                : ach.percentage >= 50
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {ach.percentage.toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600">
-                          {Math.max(0, ach.target - ach.achieved).toFixed(2)} KM
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile card view */}
-              <div className="md:hidden space-y-3 p-4">
-                {data.achievementByCommercial.map((ach, idx) => (
-                  <div
-                    key={`${ach.commercialId}-${idx}`}
-                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
-                  >
-                    <div className="font-medium text-slate-800 mb-2">
-                      {ach.commercial}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
-                      <div>
-                        <span className="text-slate-500">Target: </span>
-                        <span className="text-slate-800">{ach.target.toFixed(2)} KM</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Ostvareno: </span>
-                        <span className="font-semibold text-slate-800">{ach.achieved.toFixed(2)} KM</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Postotak: </span>
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            ach.percentage >= 100
-                              ? "bg-emerald-100 text-emerald-700"
-                              : ach.percentage >= 80
-                              ? "bg-blue-100 text-blue-700"
-                              : ach.percentage >= 50
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {ach.percentage.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Preostalo: </span>
-                        <span className="text-slate-800">{Math.max(0, ach.target - ach.achieved).toFixed(2)} KM</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {activeTab === "products" && (
-        <>
-          {/* Top proizvodi */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">Top proizvodi</h2>
-            </div>
-            {/* Desktop table view */}
-            <div className="hidden md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Proizvod</th>
-                    <th className="px-4 py-3 text-left">Brend</th>
-                    <th className="px-4 py-3 text-right">Količina</th>
-                    <th className="px-4 py-3 text-right">Prodaja</th>
-                    <th className="px-4 py-3 text-right">Narudžbe</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topProducts.map((product) => (
-                    <tr
-                      key={product.productId}
-                      className="border-t border-slate-100 hover:bg-slate-50 transition"
-                    >
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {product.productName}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{product.brand}</td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {product.quantity}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                        {product.amount.toFixed(2)} KM
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {product.orders}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile card view */}
-            <div className="md:hidden space-y-3 p-4">
-              {data.topProducts.map((product) => (
-                <div
-                  key={product.productId}
-                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
-                >
-                  <div className="font-medium text-slate-800 mb-1">
-                    {product.productName}
-                  </div>
-                  <div className="text-sm text-slate-600 mb-2">
-                    Brend: {product.brand}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm pt-2 border-t border-slate-100">
-                    <div>
-                      <span className="text-slate-500">Količina: </span>
-                      <span className="text-slate-800">{product.quantity}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Prodaja: </span>
-                      <span className="font-semibold text-slate-800">{product.amount.toFixed(2)} KM</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Narudžbe: </span>
-                      <span className="text-slate-800">{product.orders}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Prodaja po brendu */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Prodaja po brendu
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-3">
-                {data.salesByBrand.slice(0, 10).map((b) => (
-                  <div key={b.brand}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-800">{b.brand}</span>
-                      <span className="font-semibold text-slate-900">
-                        {b.amount.toFixed(2)} KM
-                      </span>
-                    </div>
-                    <div className="rounded-full bg-slate-100">
+                    <div className="flex-1 rounded-full bg-slate-100">
                       <div
-                        className="h-2 rounded-full bg-blue-500"
+                        className="h-6 rounded-full bg-emerald-500 transition-all"
                         style={{
-                          width: `${Math.min(100, (b.amount / maxBrandSales) * 100)}%`,
+                          width: `${Math.min(100, (d.amount / maxSalesDay) * 100)}%`,
                         }}
                       />
                     </div>
+                    <span className="w-20 text-right text-sm font-semibold text-slate-900">
+                      {d.amount.toFixed(2)} KM
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {activeTab === "clients" && (
-        <>
-          {/* Top klijenti */}
-          <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">Top klijenti</h2>
-            </div>
-            {/* Desktop table view */}
-            <div className="hidden md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Klijent</th>
-                    <th className="px-4 py-3 text-right">Prodaja</th>
-                    <th className="px-4 py-3 text-right">Narudžbe</th>
-                    <th className="px-4 py-3 text-right">Prosjek narudžbe</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.topClients.map((client) => (
-                    <tr
-                      key={client.clientId}
-                      className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
-                      onClick={() =>
-                        router.push(`/dashboard/manager/clients/${client.clientId}`)
-                      }
-                    >
-                      <td className="px-4 py-3 font-medium text-slate-800">
-                        {client.client}
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-900">
-                        {client.amount.toFixed(2)} KM
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {client.ordersCount}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {(client.amount / client.ordersCount).toFixed(2)} KM
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {data.topClients.length === 0 && (
-                <div className="flex items-center justify-center p-12">
-                  <LoadingSpinner size="md" />
-                </div>
+                ))
               )}
             </div>
+          </div>
 
-            {/* Mobile card view */}
-            <div className="md:hidden space-y-3 p-4">
-              {data.topClients.length === 0 ? (
-                <div className="flex items-center justify-center p-12">
-                  <LoadingSpinner size="md" />
-                </div>
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900">
+              Posjete po danima
+            </h2>
+            <div className="space-y-2">
+              {data.visitsByDay.length === 0 ? (
+                <p className="text-sm text-slate-500">Nema posjeta u ovom periodu.</p>
               ) : (
-                data.topClients.map((client) => (
-                  <div
-                    key={client.clientId}
-                    onClick={() =>
-                      router.push(`/dashboard/manager/clients/${client.clientId}`)
-                    }
-                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
-                  >
-                    <div className="font-medium text-slate-800 mb-2">
-                      {client.client}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-slate-100">
-                      <div>
-                        <span className="text-slate-500">Prodaja: </span>
-                        <span className="font-semibold text-slate-800">{client.amount.toFixed(2)} KM</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Narudžbe: </span>
-                        <span className="text-slate-800">{client.ordersCount}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-slate-500">Prosjek narudžbe: </span>
-                        <span className="text-slate-800">{(client.amount / client.ordersCount).toFixed(2)} KM</span>
-                      </div>
+                data.visitsByDay.map((d) => (
+                  <div key={d.date} className="flex items-center gap-3">
+                    <span className="w-20 text-sm text-slate-600">
+                      {new Date(d.date).toLocaleDateString("bs-BA", {
+                        day: "2-digit",
+                        month: "2-digit",
+                      })}
+                    </span>
+                    <div className="flex-1 space-y-1">
+                      {d.planned > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="w-12 text-xs text-slate-500">Plan:</span>
+                          <div className="flex-1 rounded-full bg-slate-100">
+                            <div
+                              className="h-3 rounded-full bg-blue-400"
+                              style={{
+                                width: `${Math.min(100, (d.planned / maxVisits) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="w-6 text-xs font-medium text-slate-700">
+                            {d.planned}
+                          </span>
+                        </div>
+                      )}
+                      {d.done > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="w-12 text-xs text-slate-500">Gotovo:</span>
+                          <div className="flex-1 rounded-full bg-slate-100">
+                            <div
+                              className="h-3 rounded-full bg-emerald-500"
+                              style={{
+                                width: `${Math.min(100, (d.done / maxVisits) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="w-6 text-xs font-medium text-slate-700">
+                            {d.done}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {activeTab === "advanced" && (
@@ -1578,7 +1029,7 @@ export default function ManagerDashboardPage() {
             </div>
           )}
 
-          {/* Aktivnost komercijalista (heatmap) - pojednostavljen prikaz */}
+          {/* Aktivnost komercijalista (heatmap) */}
           {data.commercialActivityHeatmap && data.commercialActivityHeatmap.length > 0 && (
             <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
               <h2 className="mb-4 text-lg font-semibold text-slate-900">
@@ -1627,3 +1078,4 @@ export default function ManagerDashboardPage() {
     </div>
   );
 }
+

@@ -134,6 +134,26 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               </Link>
 
               <Link 
+                href="/dashboard/commercial/products" 
+                className={getLinkClass("/dashboard/commercial/products")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Proizvodi" : undefined}
+              >
+                <CubeIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Proizvodi</span>}
+              </Link>
+
+              <Link 
+                href="/dashboard/commercial/doctor-visits" 
+                className={getLinkClass("/dashboard/commercial/doctor-visits")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Posjete doktora" : undefined}
+              >
+                <UsersIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Posjete doktora</span>}
+              </Link>
+
+              <Link 
                 href="/dashboard/commercial/chat" 
                 className={getLinkClass("/dashboard/commercial/chat")}
                 onClick={handleLinkClick}
@@ -209,6 +229,20 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Narudžbe</span>}
+              </Link>
+            </>
+          )}
+
+          {role === "DIRECTOR" && (
+            <>
+              <Link 
+                href="/dashboard/director" 
+                className={getLinkClass("/dashboard/director")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Direktor dashboard" : undefined}
+              >
+                <HomeIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Direktor dashboard</span>}
               </Link>
             </>
           )}

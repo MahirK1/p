@@ -12,6 +12,7 @@ type User = {
   email: string;
   role: string;
   createdAt: string;
+  canAccessDoctorVisits?: boolean;
 };
 
 type FormState = {
@@ -20,6 +21,7 @@ type FormState = {
   email: string;
   password: string;
   role: string;
+  canAccessDoctorVisits?: boolean;
 };
 
 export default function AdminUsersPage() {
@@ -37,6 +39,7 @@ export default function AdminUsersPage() {
     email: "",
     password: "",
     role: "COMMERCIAL",
+    canAccessDoctorVisits: false,
   });
 
   const filteredUsers = useMemo(() => {
@@ -71,6 +74,7 @@ export default function AdminUsersPage() {
       email: "",
       password: "",
       role: "COMMERCIAL",
+      canAccessDoctorVisits: false,
     });
     setModalOpen(true);
   };
@@ -83,12 +87,18 @@ export default function AdminUsersPage() {
       email: user.email,
       password: "",
       role: user.role,
+      canAccessDoctorVisits: user.canAccessDoctorVisits || false,
     });
     setModalOpen(true);
   };
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    if (e.target.type === "checkbox") {
+      const checked = (e.target as HTMLInputElement).checked;
+      setForm((f) => ({ ...f, [e.target.name]: checked }));
+    } else {
+      setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -98,8 +108,21 @@ export default function AdminUsersPage() {
     try {
       const method = isEdit ? "PUT" : "POST";
       const body = isEdit
-        ? { id: form.id, name: form.name, email: form.email, role: form.role, password: form.password || undefined }
-        : { name: form.name, email: form.email, password: form.password, role: form.role };
+        ? { 
+            id: form.id, 
+            name: form.name, 
+            email: form.email, 
+            role: form.role, 
+            password: form.password || undefined,
+            canAccessDoctorVisits: form.canAccessDoctorVisits || false
+          }
+        : { 
+            name: form.name, 
+            email: form.email, 
+            password: form.password, 
+            role: form.role,
+            canAccessDoctorVisits: form.canAccessDoctorVisits || false
+          };
 
       const res = await fetch("/api/users", {
         method,
@@ -340,10 +363,28 @@ export default function AdminUsersPage() {
                       <option value="COMMERCIAL">Komercijalista</option>
                       <option value="MANAGER">Manager</option>
                       <option value="ORDER_MANAGER">Order Manager</option>
+                      <option value="DIRECTOR">Direktor</option>
                       <option value="ADMIN">Admin</option>
                     </select>
                   </div>
                 </div>
+                {form.role === "COMMERCIAL" && (
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={form.canAccessDoctorVisits || false}
+                        onChange={(e) =>
+                          setForm({ ...form, canAccessDoctorVisits: e.target.checked })
+                        }
+                        className="rounded border-slate-300"
+                      />
+                      <span className="text-sm font-medium text-slate-600">
+                        Dozvoli pristup posjetama doktora
+                      </span>
+                    </label>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"

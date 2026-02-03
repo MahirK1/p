@@ -3,16 +3,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
 
+// Director dashboard koristi isti API kao manager, ali sa dodatnim privilegijama
+// Možemo koristiti manager route sa DIRECTOR role check
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
-  if (!session || !["MANAGER", "ADMIN"].includes(user.role)) {
+  if (!session || !["DIRECTOR", "ADMIN"].includes(user.role)) {
     return NextResponse.json(
       { error: "Forbidden" },
       { status: 403 }
     );
   }
 
+  // Koristimo istu logiku kao manager, ali sa dodatnim podacima
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? new Date().getFullYear());
   const month = Number(searchParams.get("month") ?? new Date().getMonth() + 1);
@@ -48,16 +51,11 @@ export async function GET(req: NextRequest) {
           name: true,
         },
       },
-      visit: {
-        select: {
-          id: true,
-          scheduledAt: true,
-        },
-      },
     },
+    orderBy: { createdAt: "asc" },
   });
 
-  // Narudžbe - prethodni period
+  // Prethodni period narudžbe
   const prevOrders = await prisma.order.findMany({
     where: {
       createdAt: { gte: prevFrom, lte: prevTo },
@@ -73,35 +71,6 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // Posjete - trenutni period
-  const visits = await prisma.visit.findMany({
-    where: {
-      scheduledAt: { gte: from, lte: to },
-      ...commercialFilter,
-    },
-    include: {
-      commercial: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      orders: {
-        select: {
-          id: true,
-          createdAt: true,
-        },
-      },
-    },
-  });
-
-  // Osnovne metrike
   const totalSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const prevTotalSales = prevOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const totalOrders = orders.length;
@@ -109,241 +78,249 @@ export async function GET(req: NextRequest) {
   const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
   const prevAvgOrderValue = prevTotalOrders > 0 ? prevTotalSales / prevTotalOrders : 0;
 
+  // Posjete
+  const visits = await prisma.visit.findMany({
+    where: {
+      scheduledAt: { gte: from, lte: to },
+      ...commercialFilter,
+    },
+    include: {
+      commercial: true,
+      client: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  const visitsTotal = visits.length;
+  const visitsPlanned = visits.filter((v) => v.status === "PLANNED").length;
+  const visitsDone = visits.filter((v) => v.status === "DONE").length;
+  const visitsCanceled = visits.filter((v) => v.status === "CANCELED").length;
+
+  // Posjete sa narudžbama
+  const visitsWithOrders = visits.filter((v) => {
+    return orders.some((o) => o.commercialId === v.commercialId && 
+      Math.abs(new Date(o.createdAt).getTime() - new Date(v.scheduledAt).getTime()) < 7 * 24 * 60 * 60 * 1000);
+  }).length;
+
+  const conversionRate = visitsDone > 0 ? (visitsWithOrders / visitsDone) * 100 : 0;
+
   // Prodaja po danima
   const salesByDayMap = new Map<string, number>();
   for (const o of orders) {
     const key = o.createdAt.toISOString().slice(0, 10);
-    salesByDayMap.set(key, (salesByDayMap.get(key) ?? 0) + Number(o.totalAmount));
+    salesByDayMap.set(key, (salesByDayMap.get(key) || 0) + Number(o.totalAmount));
   }
-  const salesByDay = Array.from(salesByDayMap.entries())
-    .map(([date, amount]) => ({ date, amount }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const salesByDay = Array.from(salesByDayMap.entries()).map(([date, amount]) => ({
+    date,
+    amount,
+  }));
 
-  // Aktivnost po danima u sedmici
-  const salesByWeekday = new Map<number, { amount: number; orders: number; visits: number }>();
+  // Posjete po danima
+  const visitsByDayMap = new Map<string, { planned: number; done: number }>();
+  for (const v of visits) {
+    const key = v.scheduledAt.toISOString().slice(0, 10);
+    const existing = visitsByDayMap.get(key) || { planned: 0, done: 0 };
+    if (v.status === "PLANNED") existing.planned++;
+    if (v.status === "DONE") existing.done++;
+    visitsByDayMap.set(key, existing);
+  }
+  const visitsByDay = Array.from(visitsByDayMap.entries()).map(([date, counts]) => ({
+    date,
+    ...counts,
+  }));
+
+  // Prodaja po danima u sedmici
+  const salesByWeekdayMap = new Map<number, { amount: number; orders: number; visits: number }>();
   for (const o of orders) {
-    const weekday = new Date(o.createdAt).getDay();
-    const existing = salesByWeekday.get(weekday) ?? { amount: 0, orders: 0, visits: 0 };
+    const day = o.createdAt.getDay();
+    const existing = salesByWeekdayMap.get(day) || { amount: 0, orders: 0, visits: 0 };
     existing.amount += Number(o.totalAmount);
-    existing.orders += 1;
-    salesByWeekday.set(weekday, existing);
+    existing.orders++;
+    salesByWeekdayMap.set(day, existing);
   }
-  for (const visit of visits) {
-    const weekday = new Date(visit.scheduledAt).getDay();
-    const existing = salesByWeekday.get(weekday) ?? { amount: 0, orders: 0, visits: 0 };
-    existing.visits += 1;
-    salesByWeekday.set(weekday, existing);
+  for (const v of visits) {
+    const day = v.scheduledAt.getDay();
+    const existing = salesByWeekdayMap.get(day) || { amount: 0, orders: 0, visits: 0 };
+    existing.visits++;
+    salesByWeekdayMap.set(day, existing);
   }
-  const salesByWeekdayArray = Array.from(salesByWeekday.entries())
+  const salesByWeekdayArray = Array.from(salesByWeekdayMap.entries())
     .map(([day, data]) => ({ day, ...data }))
     .sort((a, b) => a.day - b.day);
 
-  // Aktivnost po satima
-  const salesByHour = new Map<number, { amount: number; orders: number }>();
+  // Prodaja po satima
+  const salesByHourMap = new Map<number, { amount: number; orders: number }>();
   for (const o of orders) {
-    const hour = new Date(o.createdAt).getHours();
-    const existing = salesByHour.get(hour) ?? { amount: 0, orders: 0 };
+    const hour = o.createdAt.getHours();
+    const existing = salesByHourMap.get(hour) || { amount: 0, orders: 0 };
     existing.amount += Number(o.totalAmount);
-    existing.orders += 1;
-    salesByHour.set(hour, existing);
+    existing.orders++;
+    salesByHourMap.set(hour, existing);
   }
-  const salesByHourArray = Array.from(salesByHour.entries())
+  const salesByHourArray = Array.from(salesByHourMap.entries())
     .map(([hour, data]) => ({ hour, ...data }))
     .sort((a, b) => a.hour - b.hour);
 
-  // Top proizvodi
-  const productSalesMap = new Map<
-    string,
-    {
-      productId: string;
-      productName: string;
-      brand: string;
-      quantity: number;
-      amount: number;
-      orders: number;
-    }
-  >();
-  for (const o of orders) {
-    for (const item of o.items) {
-      const key = item.productId;
-      const existing = productSalesMap.get(key) ?? {
-        productId: item.productId,
-        productName: item.product.name,
-        brand: item.product.brand?.name ?? "Ostalo",
-        quantity: 0,
-        amount: 0,
-        orders: 0,
-      };
-      existing.quantity += item.quantity;
-      existing.amount += Number(item.lineTotal);
-      existing.orders += 1;
-      productSalesMap.set(key, existing);
-    }
-  }
-  const topProducts = Array.from(productSalesMap.values())
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 20);
-
   // Prodaja po brendu
-  const salesByBrandMap = new Map<string, { brand: string; amount: number; orders: number }>();
+  const salesByBrandMap = new Map<string, { amount: number; orders: number }>();
   for (const o of orders) {
     for (const item of o.items) {
-      const brandName = item.product.brand?.name ?? "Ostalo";
-      const amount = Number(item.lineTotal);
-      const existing = salesByBrandMap.get(brandName) ?? {
-        brand: brandName,
-        amount: 0,
-        orders: 0,
-      };
-      existing.amount += amount;
+      const brandName = item.product.brand?.name || "Bez brenda";
+      const existing = salesByBrandMap.get(brandName) || { amount: 0, orders: 0 };
+      existing.amount += Number(item.lineTotal);
       if (!salesByBrandMap.has(brandName)) {
-        existing.orders = 1;
+        existing.orders++;
       }
       salesByBrandMap.set(brandName, existing);
     }
   }
-  const salesByBrand = Array.from(salesByBrandMap.values()).sort(
-    (a, b) => b.amount - a.amount
-  );
+  const salesByBrand = Array.from(salesByBrandMap.entries())
+    .map(([brand, data]) => ({ brand, ...data }))
+    .sort((a, b) => b.amount - a.amount);
 
-  // Prodaja po komercijalisti - sa detaljima
-  const salesByCommercialMap = new Map<
-    string,
-    {
-      commercialId: string;
-      commercial: string;
-      amount: number;
-      ordersCount: number;
-      visitsCount: number;
-      visitsDone: number;
-      visitsWithOrders: number;
-      avgOrderValue: number;
-      avgDaysToOrder: number;
+  // Top proizvodi
+  const productMap = new Map<string, {
+    productId: string;
+    productName: string;
+    brand: string;
+    quantity: number;
+    amount: number;
+    orders: Set<string>;
+  }>();
+  for (const o of orders) {
+    for (const item of o.items) {
+      const key = item.productId;
+      const existing = productMap.get(key) || {
+        productId: item.productId,
+        productName: item.product.name,
+        brand: item.product.brand?.name || "Bez brenda",
+        quantity: 0,
+        amount: 0,
+        orders: new Set<string>(),
+      };
+      existing.quantity += item.quantity;
+      existing.amount += Number(item.lineTotal);
+      existing.orders.add(o.id);
+      productMap.set(key, existing);
     }
-  >();
+  }
+  const topProducts = Array.from(productMap.values())
+    .map((p) => ({ ...p, orders: p.orders.size }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 20);
 
+  // Prodaja po komercijalisti
+  const salesByCommercialMap = new Map<string, {
+    commercialId: string;
+    commercial: string;
+    amount: number;
+    ordersCount: number;
+    visitsCount: number;
+    visitsDone: number;
+    visitsWithOrders: number;
+    orderDates: Date[];
+    visitDates: Date[];
+  }>();
   for (const o of orders) {
     const key = o.commercialId;
-    const existing =
-      salesByCommercialMap.get(key) ?? {
-        commercialId: o.commercialId,
-        commercial: o.commercial.name,
-        amount: 0,
-        ordersCount: 0,
-        visitsCount: 0,
-        visitsDone: 0,
-        visitsWithOrders: 0,
-        avgOrderValue: 0,
-        avgDaysToOrder: 0,
-      };
+    const existing = salesByCommercialMap.get(key) || {
+      commercialId: o.commercialId,
+      commercial: o.commercial.name,
+      amount: 0,
+      ordersCount: 0,
+      visitsCount: 0,
+      visitsDone: 0,
+      visitsWithOrders: 0,
+      orderDates: [],
+      visitDates: [],
+    };
     existing.amount += Number(o.totalAmount);
-    existing.ordersCount += 1;
+    existing.ordersCount++;
+    existing.orderDates.push(o.createdAt);
     salesByCommercialMap.set(key, existing);
   }
-
-  // Statistike posjeta po komercijalisti
-  for (const visit of visits) {
-    const existing = salesByCommercialMap.get(visit.commercialId);
-    if (existing) {
-      existing.visitsCount += 1;
-      if (visit.status === "DONE") {
-        existing.visitsDone += 1;
-      }
-      if (visit.orders.length > 0) {
-        existing.visitsWithOrders += 1;
+  for (const v of visits) {
+    const key = v.commercialId;
+    const existing = salesByCommercialMap.get(key) || {
+      commercialId: v.commercialId,
+      commercial: v.commercial.name,
+      amount: 0,
+      ordersCount: 0,
+      visitsCount: 0,
+      visitsDone: 0,
+      visitsWithOrders: 0,
+      orderDates: [],
+      visitDates: [],
+    };
+    existing.visitsCount++;
+    if (v.status === "DONE") existing.visitsDone++;
+    existing.visitDates.push(v.scheduledAt);
+    salesByCommercialMap.set(key, existing);
+  }
+  // Izračunaj visitsWithOrders i avgDaysToOrder
+  for (const [key, data] of salesByCommercialMap.entries()) {
+    let visitsWithOrdersCount = 0;
+    let totalDaysToOrder = 0;
+    let daysToOrderCount = 0;
+    for (const visitDate of data.visitDates) {
+      const matchingOrder = data.orderDates.find((orderDate) => {
+        const diff = Math.abs(orderDate.getTime() - visitDate.getTime());
+        return diff < 7 * 24 * 60 * 60 * 1000 && orderDate >= visitDate;
+      });
+      if (matchingOrder) {
+        visitsWithOrdersCount++;
+        const days = Math.floor((matchingOrder.getTime() - visitDate.getTime()) / (24 * 60 * 60 * 1000));
+        totalDaysToOrder += days;
+        daysToOrderCount++;
       }
     }
+    data.visitsWithOrders = visitsWithOrdersCount;
+    data.avgDaysToOrder = daysToOrderCount > 0 ? totalDaysToOrder / daysToOrderCount : 0;
   }
-
-  // Prosječno vrijeme između posjete i narudžbe
-  for (const order of orders) {
-    if (order.visit) {
-      const existing = salesByCommercialMap.get(order.commercialId);
-      if (existing) {
-        const daysDiff =
-          (new Date(order.createdAt).getTime() -
-            new Date(order.visit.scheduledAt).getTime()) /
-          (1000 * 60 * 60 * 24);
-        const currentAvg = existing.avgDaysToOrder;
-        const count = existing.ordersCount;
-        existing.avgDaysToOrder = currentAvg === 0 
-          ? daysDiff 
-          : (currentAvg * (count - 1) + daysDiff) / count;
-      }
-    }
-  }
-
-  // Izračunaj prosječnu vrijednost narudžbe
-  salesByCommercialMap.forEach((value) => {
-    value.avgOrderValue = value.ordersCount > 0 ? value.amount / value.ordersCount : 0;
-  });
-
-  const salesByCommercial = Array.from(salesByCommercialMap.values()).sort(
-    (a, b) => b.amount - a.amount
-  );
+  const salesByCommercial = Array.from(salesByCommercialMap.values())
+    .map((c) => ({
+      ...c,
+      avgOrderValue: c.ordersCount > 0 ? c.amount / c.ordersCount : 0,
+      avgDaysToOrder: c.avgDaysToOrder,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   // Performance ranking
-  const performanceRanking = salesByCommercial
-    .map((com) => ({
+  const performanceRanking = salesByCommercial.map((com) => {
+    const conversionRate = com.visitsDone > 0 ? (com.visitsWithOrders / com.visitsDone) * 100 : 0;
+    const visitCompletionRate = com.visitsCount > 0 ? (com.visitsDone / com.visitsCount) * 100 : 0;
+    const score = com.amount * 0.4 + com.ordersCount * 10 + conversionRate * 5 + visitCompletionRate * 2;
+    return {
       ...com,
-      conversionRate:
-        com.visitsDone > 0 ? (com.visitsWithOrders / com.visitsDone) * 100 : 0,
-      visitCompletionRate:
-        com.visitsCount > 0 ? (com.visitsDone / com.visitsCount) * 100 : 0,
-      score:
-        (com.amount / 1000) * 0.4 + // Prodaja (40%)
-        com.ordersCount * 10 * 0.2 + // Broj narudžbi (20%)
-        (com.visitsDone / com.visitsCount || 0) * 100 * 0.2 + // Realizacija posjeta (20%)
-        ((com.visitsWithOrders / com.visitsDone) * 100 || 0) * 0.2, // Konverzija (20%)
-    }))
+      conversionRate,
+      visitCompletionRate,
+      score,
+    };
+  })
     .sort((a, b) => b.score - a.score)
     .map((com, idx) => ({ ...com, rank: idx + 1 }));
 
-  // Top klijenti (po prodaji)
-  const salesByClientMap = new Map<
-    string,
-    { clientId: string; client: string; amount: number; ordersCount: number }
-  >();
+  // Top klijenti
+  const clientMap = new Map<string, { clientId: string; client: string; amount: number; ordersCount: number }>();
   for (const o of orders) {
     const key = o.clientId;
-    const existing =
-      salesByClientMap.get(key) ?? {
-        clientId: o.clientId,
-        client: o.client.name,
-        amount: 0,
-        ordersCount: 0,
-      };
+    const existing = clientMap.get(key) || {
+      clientId: o.clientId,
+      client: o.client.name,
+      amount: 0,
+      ordersCount: 0,
+    };
     existing.amount += Number(o.totalAmount);
-    existing.ordersCount += 1;
-    salesByClientMap.set(key, existing);
+    existing.ordersCount++;
+    clientMap.set(key, existing);
   }
-  const topClients = Array.from(salesByClientMap.values())
+  const topClients = Array.from(clientMap.values())
     .sort((a, b) => b.amount - a.amount)
-    .slice(0, 10);
-
-  // Statistike posjeta
-  const visitsPlanned = visits.filter((v) => v.status === "PLANNED").length;
-  const visitsDone = visits.filter((v) => v.status === "DONE").length;
-  const visitsCanceled = visits.filter((v) => v.status === "CANCELED").length;
-  const visitsTotal = visits.length;
-
-  // Konverzija posjeta u narudžbe
-  const visitsWithOrders = visits.filter((v) => v.orders.length > 0).length;
-  const conversionRate =
-    visitsDone > 0 ? (visitsWithOrders / visitsDone) * 100 : 0;
-
-  // Posjete po danima
-  const visitsByDayMap = new Map<string, { planned: number; done: number }>();
-  for (const visit of visits) {
-    const key = visit.scheduledAt.toISOString().slice(0, 10);
-    const existing = visitsByDayMap.get(key) ?? { planned: 0, done: 0 };
-    if (visit.status === "PLANNED") existing.planned += 1;
-    if (visit.status === "DONE") existing.done += 1;
-    visitsByDayMap.set(key, existing);
-  }
-  const visitsByDay = Array.from(visitsByDayMap.entries())
-    .map(([date, data]) => ({ date, ...data }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .slice(0, 20);
 
   // ========== NOVE ANALITIKE - VISOKI PRIORITET ==========
   
@@ -382,7 +359,6 @@ export async function GET(req: NextRequest) {
   }
 
   // 2. Novi vs postojeći klijenti
-  // Novi klijent = prva narudžba u trenutnom periodu
   const allClientOrders = await prisma.order.findMany({
     where: {
       status: { in: ["APPROVED", "COMPLETED"] },
@@ -411,11 +387,9 @@ export async function GET(req: NextRequest) {
   for (const order of orders) {
     const firstOrderDate = firstOrderByClient.get(order.clientId);
     if (firstOrderDate && firstOrderDate >= from && firstOrderDate <= to) {
-      // Novi klijent
       newClientsCount++;
       newClientsSales += Number(order.totalAmount);
     } else {
-      // Postojeći klijent
       existingClientsCount++;
       existingClientsSales += Number(order.totalAmount);
     }
@@ -430,10 +404,9 @@ export async function GET(req: NextRequest) {
       .map((o) => o.clientId)
   )).length;
 
-  // 3. Churn analiza (klijenti bez narudžbi u posljednjih 3 mjeseca) - optimizovano
+  // 3. Churn analiza (klijenti bez narudžbi u posljednjih 3 mjeseca)
   const churnThreshold = new Date(year, month - 1 - 3, 1);
   
-  // Uzmi sve klijente koji su imali narudžbe
   const clientsWithOrders = await prisma.order.findMany({
     where: {
       status: { in: ["APPROVED", "COMPLETED"] },
@@ -452,7 +425,6 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
   });
   
-  // Pronađi posljednju narudžbu po klijentu
   const lastOrderByClient = new Map<string, { clientId: string; client: string; lastOrderDate: Date }>();
   for (const order of clientsWithOrders) {
     if (!lastOrderByClient.has(order.clientId)) {
@@ -464,7 +436,6 @@ export async function GET(req: NextRequest) {
     }
   }
   
-  // Uzmi sve klijente
   const allClients = await prisma.client.findMany({
     select: { id: true, name: true },
   });
@@ -489,7 +460,6 @@ export async function GET(req: NextRequest) {
     }
   }
   
-  // Sortiraj po mjesecima bez narudžbe (najduže prvo) i uzmi top 50
   churnedClients.sort((a, b) => b.monthsSinceLastOrder - a.monthsSinceLastOrder);
   const topChurnedClients = churnedClients.slice(0, 50);
 
@@ -499,7 +469,6 @@ export async function GET(req: NextRequest) {
   
   for (const visit of visits) {
     if (visit.status === "CANCELED" && visit.note) {
-      // Parsiranje razloga iz napomene (format: "--- RAZLOG OTKAZIVANJA ---\n{razlog}")
       const reasonMatch = visit.note.match(/---\s*RAZLOG\s*OTKAZIVANJA\s*---\s*\n(.+?)(?:\n\n|$)/i);
       if (reasonMatch) {
         const reason = reasonMatch[1].trim();
@@ -526,7 +495,6 @@ export async function GET(req: NextRequest) {
   
   for (const visit of visits) {
     if (visit.status === "DONE") {
-      // Provjeri da li postoji narudžba u narednih 7 dana
       const visitDate = new Date(visit.scheduledAt);
       const checkUntil = new Date(visitDate);
       checkUntil.setDate(checkUntil.getDate() + 7);
@@ -557,26 +525,6 @@ export async function GET(req: NextRequest) {
   // ========== ANALITIKE SREDNJEG PRIORITETA ==========
   
   // 6. Customer Lifetime Value (CLV)
-  const clientLifetimeValue: Array<{
-    clientId: string;
-    client: string;
-    totalOrders: number;
-    totalSales: number;
-    firstOrderDate: Date;
-    lastOrderDate: Date;
-    avgOrderValue: number;
-  }> = [];
-  
-  const clvMap = new Map<string, {
-    clientId: string;
-    client: string;
-    orders: number;
-    sales: number;
-    firstOrder: Date;
-    lastOrder: Date;
-  }>();
-  
-  // Uzmi sve narudžbe za sve klijente (ne samo trenutni period)
   const allOrdersForCLV = await prisma.order.findMany({
     where: {
       status: { in: ["APPROVED", "COMPLETED"] },
@@ -592,6 +540,15 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: "asc" },
   });
+  
+  const clvMap = new Map<string, {
+    clientId: string;
+    client: string;
+    orders: number;
+    sales: number;
+    firstOrder: Date;
+    lastOrder: Date;
+  }>();
   
   for (const order of allOrdersForCLV) {
     const key = order.clientId;
@@ -609,6 +566,16 @@ export async function GET(req: NextRequest) {
     if (order.createdAt > existing.lastOrder) existing.lastOrder = order.createdAt;
     clvMap.set(key, existing);
   }
+  
+  const clientLifetimeValue: Array<{
+    clientId: string;
+    client: string;
+    totalOrders: number;
+    totalSales: number;
+    firstOrderDate: Date;
+    lastOrderDate: Date;
+    avgOrderValue: number;
+  }> = [];
   
   for (const [key, data] of clvMap.entries()) {
     clientLifetimeValue.push({
@@ -629,7 +596,6 @@ export async function GET(req: NextRequest) {
   const prevProductSales = new Map<string, number>();
   const currentProductSales = new Map<string, { productId: string; productName: string; brand: string; amount: number }>();
   
-  // Prethodni period - prodaja po proizvodu
   for (const order of prevOrders) {
     for (const item of order.items) {
       const key = item.productId;
@@ -637,7 +603,6 @@ export async function GET(req: NextRequest) {
     }
   }
   
-  // Trenutni period - prodaja po proizvodu
   for (const order of orders) {
     for (const item of order.items) {
       const key = item.productId;
@@ -688,8 +653,7 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => a.changePercent - b.changePercent)
     .slice(0, 10);
 
-  // 8. Aktivnost komercijalista (heatmap) - kalendarski prikaz
-  // Uzmi sve komercijaliste
+  // 8. Aktivnost komercijalista (heatmap)
   const allCommercials = await prisma.user.findMany({
     where: {
       role: "COMMERCIAL",
@@ -706,7 +670,6 @@ export async function GET(req: NextRequest) {
     activityByDate: Array<{ date: string; visits: number; orders: number; totalActivity: number }>;
   }> = [];
   
-  // Grupiši aktivnost po komercijalisti i datumu
   const activityMap = new Map<string, Map<string, { visits: number; orders: number }>>();
   
   for (const visit of visits) {
@@ -733,7 +696,6 @@ export async function GET(req: NextRequest) {
     dateMap.set(dateKey, existing);
   }
   
-  // Konvertuj u format za heatmap
   for (const [commercialId, dateMap] of activityMap.entries()) {
     const commercial = allCommercials.find(c => c.id === commercialId) || { id: commercialId, name: "Nepoznato" };
     const activityByDate: Array<{ date: string; visits: number; orders: number; totalActivity: number }> = [];
@@ -756,7 +718,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // 10. Funnel analiza (posjete → narudžbe)
+  // 10. Funnel analiza
   const funnelAnalysis = {
     plannedVisits: visitsPlanned,
     doneVisits: visitsDone,
@@ -773,64 +735,38 @@ export async function GET(req: NextRequest) {
     },
   };
 
-  // Planovi i achievement (ako postoje)
+  // Realizacija planova
   const plans = await prisma.plan.findMany({
     where: {
       year,
       month,
     },
     include: {
-      brand: true,
       assignments: {
         include: {
-          commercial: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
+          commercial: true,
         },
       },
     },
   });
 
-  // Achievement po komercijalisti
-  const achievementByCommercial = new Map<
-    string,
-    {
-      commercialId: string;
-      commercial: string;
-      target: number;
-      achieved: number;
-      percentage: number;
-      planId?: string;
-    }
-  >();
+  const achievementByCommercial = new Map<string, {
+    commercialId: string;
+    commercial: string;
+    target: number;
+    achieved: number;
+    percentage: number;
+    planId: string;
+  }>();
 
   for (const plan of plans) {
-    const planOrders = orders.filter((o) => {
-      if (plan.brandId) {
-        return o.items.some((item) => item.product.brandId === plan.brandId);
-      }
-      return true;
-    });
-
     for (const assignment of plan.assignments) {
-      const commercialOrders = planOrders.filter(
-        (o) => o.commercialId === assignment.commercialId
-      );
-      let achieved = 0;
-      for (const order of commercialOrders) {
-        for (const item of order.items) {
-          if (plan.brandId && item.product.brandId !== plan.brandId) continue;
-          achieved += Number(item.lineTotal);
-        }
-      }
-
+      const key = assignment.commercialId;
+      const commercialOrders = orders.filter((o) => o.commercialId === assignment.commercialId);
+      const achieved = commercialOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
       const target = Number(assignment.target);
       const percentage = target > 0 ? (achieved / target) * 100 : 0;
 
-      const key = `${assignment.commercialId}-${plan.id}`;
       achievementByCommercial.set(key, {
         commercialId: assignment.commercialId,
         commercial: assignment.commercial.name,
@@ -855,7 +791,7 @@ export async function GET(req: NextRequest) {
     },
     orders: {
       current: totalOrders,
-      target: 0, // Možemo dodati target za narudžbe ako postoji
+      target: 0,
       achieved: totalOrders,
       percentage: 0,
     },
@@ -867,7 +803,7 @@ export async function GET(req: NextRequest) {
     },
     conversion: {
       current: conversionRate,
-      target: 50, // Default target 50%
+      target: 50,
       achieved: conversionRate,
       percentage: (conversionRate / 50) * 100,
     },
@@ -935,3 +871,4 @@ export async function GET(req: NextRequest) {
     funnelAnalysis: funnelAnalysis,
   });
 }
+
