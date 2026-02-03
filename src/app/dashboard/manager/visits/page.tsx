@@ -291,8 +291,8 @@ export default function ManagerVisitsPage() {
   };
 
   const updateStatus = async (id: string, status: Visit["status"]) => {
+    // Ne dozvoli direktno otkazivanje bez razloga - koristi handleCancelClick umjesto toga
     if (status === "CANCELED") {
-      // Ne dozvoli direktno otkazivanje bez razloga
       return;
     }
     
@@ -304,11 +304,7 @@ export default function ManagerVisitsPage() {
         showToast("Otkazana posjeta ne može biti označena kao završena.", "warning");
         return;
       }
-      // Ne dozvoli prelazak iz DONE u CANCELED
-      if (visit.status === "DONE" && status === "CANCELED") {
-        showToast("Završena posjeta ne može biti otkazana.", "warning");
-        return;
-      }
+      // Provjera za DONE -> CANCELED nije potrebna jer smo već provjerili da status ne može biti CANCELED
     }
     
     const res = await fetch("/api/visits", {
