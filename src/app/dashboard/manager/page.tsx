@@ -5,6 +5,23 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
+// Helper funkcija za sigurno formatiranje datuma (iOS Safari kompatibilnost)
+const safeFormatDate = (date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string => {
+  if (!date) return "—";
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return "—";
+    return dateObj.toLocaleDateString("bs-BA", options || {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch (error) {
+    console.error("Error formatting date:", error, date);
+    return "—";
+  }
+};
+
 type ManagerAnalytics = {
   year: number;
   month: number;
@@ -434,7 +451,7 @@ export default function ManagerDashboardPage() {
                   data.salesByDay.map((d) => (
                     <div key={d.date} className="flex items-center gap-3">
                       <span className="w-20 text-sm text-slate-600">
-                        {new Date(d.date).toLocaleDateString("bs-BA", {
+                        {safeFormatDate(d.date, {
                           day: "2-digit",
                           month: "2-digit",
                         })}
@@ -468,7 +485,7 @@ export default function ManagerDashboardPage() {
                   data.visitsByDay.map((d) => (
                     <div key={d.date} className="flex items-center gap-3">
                       <span className="w-20 text-sm text-slate-600">
-                        {new Date(d.date).toLocaleDateString("bs-BA", {
+                        {safeFormatDate(d.date, {
                           day: "2-digit",
                           month: "2-digit",
                         })}
@@ -1262,7 +1279,7 @@ export default function ManagerDashboardPage() {
                         </td>
                         <td className="px-4 py-3 text-slate-600">{visit.commercialName}</td>
                         <td className="px-4 py-3 text-slate-600">
-                          {new Date(visit.scheduledAt).toLocaleDateString("bs-BA", {
+                          {safeFormatDate(visit.scheduledAt, {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
@@ -1288,7 +1305,7 @@ export default function ManagerDashboardPage() {
                     </div>
                     <div className="text-sm text-slate-600">
                       Datum:{" "}
-                      {new Date(visit.scheduledAt).toLocaleDateString("bs-BA", {
+                      {safeFormatDate(visit.scheduledAt, {
                         day: "2-digit",
                         month: "2-digit",
                         year: "numeric",
@@ -1347,10 +1364,10 @@ export default function ManagerDashboardPage() {
                           {client.avgOrderValue.toFixed(2)} KM
                         </td>
                         <td className="px-4 py-3 text-slate-600 text-xs">
-                          {new Date(client.firstOrderDate).toLocaleDateString("bs-BA")}
+                          {safeFormatDate(client.firstOrderDate)}
                         </td>
                         <td className="px-4 py-3 text-slate-600 text-xs">
-                          {new Date(client.lastOrderDate).toLocaleDateString("bs-BA")}
+                          {safeFormatDate(client.lastOrderDate)}
                         </td>
                       </tr>
                     ))}

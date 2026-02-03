@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AuthSessionProvider } from "@/components/AuthSessionProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -41,14 +42,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="h-screen min-h-0 flex flex-col overflow-hidden">
-  <AuthSessionProvider>
-    <ToastProvider>
-      <ServiceWorkerRegistration />
-      <main className="flex-1 min-h-0 overflow-hidden">
-        {children}
-      </main>
-    </ToastProvider>
-  </AuthSessionProvider>
+  <ErrorBoundary>
+    <AuthSessionProvider>
+      <ToastProvider>
+        <ServiceWorkerRegistration />
+        <main className="flex-1 min-h-0 overflow-hidden">
+          {children}
+        </main>
+      </ToastProvider>
+    </AuthSessionProvider>
+  </ErrorBoundary>
 </body>
 
     </html>
