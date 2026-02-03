@@ -48,17 +48,31 @@ export default function CommercialVisitsPage() {
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const clientDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filteri
+  // Filteri - sigurno kreiranje datuma (iOS Safari kompatibilnost)
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterDateFrom, setFilterDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      if (isNaN(d.getTime())) throw new Error("Invalid date");
+      return d.toISOString().slice(0, 10);
+    } catch (error) {
+      console.error("Error setting filterDateFrom:", error);
+      // Fallback na default datum
+      return "2024-01-01";
+    }
   });
   const [filterDateTo, setFilterDateTo] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      if (isNaN(d.getTime())) throw new Error("Invalid date");
+      return d.toISOString().slice(0, 10);
+    } catch (error) {
+      console.error("Error setting filterDateTo:", error);
+      // Fallback na default datum
+      return "2024-12-31";
+    }
   });
 
   const [form, setForm] = useState({
@@ -76,8 +90,26 @@ export default function CommercialVisitsPage() {
       contactPerson: "",
       note: "",
     },
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toTimeString().slice(0, 5),
+    date: (() => {
+      try {
+        const d = new Date();
+        if (isNaN(d.getTime())) throw new Error("Invalid date");
+        return d.toISOString().slice(0, 10);
+      } catch (error) {
+        console.error("Error setting form date:", error);
+        return "2024-01-01";
+      }
+    })(),
+    time: (() => {
+      try {
+        const d = new Date();
+        if (isNaN(d.getTime())) throw new Error("Invalid date");
+        return d.toTimeString().slice(0, 5);
+      } catch (error) {
+        console.error("Error setting form time:", error);
+        return "09:00";
+      }
+    })(),
     contactPersonDuringVisit: "",
     note: "",
   });

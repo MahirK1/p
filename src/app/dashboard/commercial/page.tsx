@@ -30,28 +30,60 @@ export default function CommercialDashboardPage() {
     async function load() {
       setLoading(true);
       try {
-        const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
-        
-        const [analyticsRes, plansRes] = await Promise.all([
-          fetch(`/api/analytics/commercial?year=${currentYear}&month=${currentMonth}`),
-          fetch(`/api/plans?commercialId=me&year=${currentYear}&month=${currentMonth}`),
-        ]);
-        
-        if (!analyticsRes.ok || !plansRes.ok) {
-          console.error("Error fetching data");
-          return;
+        // Sigurno dobijanje trenutnog datuma (iOS Safari kompatibilnost)
+        let currentYear: number;
+        let currentMonth: number;
+        try {
+          const now = new Date();
+          currentYear = now.getFullYear();
+          currentMonth = now.getMonth() + 1;
+        } catch (dateError) {
+          console.error("Error getting current date:", dateError);
+          // Fallback na default vrijednosti
+          currentYear = 2024;
+          currentMonth = 1;
         }
         
-        const [analyticsData, plansData] = await Promise.all([
-          analyticsRes.json(),
-          plansRes.json(),
+        const [analyticsRes, plansRes] = await Promise.all([
+          fetch(`/api/analytics/commercial?year=${currentYear}&month=${currentMonth}`).catch(err => {
+            console.error("Error fetching analytics:", err);
+            return null;
+          }),
+          fetch(`/api/plans?commercialId=me&year=${currentYear}&month=${currentMonth}`).catch(err => {
+            console.error("Error fetching plans:", err);
+            return null;
+          }),
         ]);
         
-        setData(analyticsData);
-        setPlans(Array.isArray(plansData) ? plansData : []);
+        if (!analyticsRes || !analyticsRes.ok) {
+          console.error("Error fetching analytics data");
+          setData(null);
+        } else {
+          try {
+            const analyticsData = await analyticsRes.json();
+            setData(analyticsData);
+          } catch (jsonError) {
+            console.error("Error parsing analytics JSON:", jsonError);
+            setData(null);
+          }
+        }
+        
+        if (!plansRes || !plansRes.ok) {
+          console.error("Error fetching plans data");
+          setPlans([]);
+        } else {
+          try {
+            const plansData = await plansRes.json();
+            setPlans(Array.isArray(plansData) ? plansData : []);
+          } catch (jsonError) {
+            console.error("Error parsing plans JSON:", jsonError);
+            setPlans([]);
+          }
+        }
       } catch (error) {
         console.error("Error loading dashboard:", error);
+        setData(null);
+        setPlans([]);
       } finally {
         setLoading(false);
       }
@@ -93,10 +125,31 @@ export default function CommercialDashboardPage() {
     });
   }, [data, plans]);
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px] p-4">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px] p-4">
+        <div className="text-center">
+          <p className="text-lg font-semibold text-slate-900 mb-2">
+            Greška pri učitavanju podataka
+          </p>
+          <p className="text-sm text-slate-600 mb-4">
+            Molimo osvježite stranicu ili pokušajte kasnije.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Osvježi stranicu
+          </button>
+        </div>
       </div>
     );
   }
@@ -193,28 +246,30 @@ export default function CommercialDashboardPage() {
           Prodaja po danima
         </h2>
         <div className="space-y-1 text-xs text-slate-600">
-          {!salesByDay || salesByDay.length === 0 ? (
+          {!salesByDay || !Array.isArray(salesByDay) || salesByDay.length === 0 ? (
             <p>Nema prodaje u ovom mjesecu.</p>
           ) : (
-            salesByDay.map((d) => (
-              <div key={d.date} className="flex items-center gap-2">
-                <span className="w-24">{d.date}</span>
-                <div className="flex-1 rounded-full bg-slate-100">
-                  <div
-                    className="h-2 rounded-full bg-blue-500"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (d.amount / (totalSales || 1)) * 100
-                      )}%`,
-                    }}
-                  />
+            salesByDay.map((d) => {
+              if (!d || typeof d.amount !== 'number') return null;
+              const amount = Number(d.amount) || 0;
+              const maxSales = Number(totalSales) || 1;
+              return (
+                <div key={d.date || Math.random()} className="flex items-center gap-2">
+                  <span className="w-24">{d.date || '—'}</span>
+                  <div className="flex-1 rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-blue-500"
+                      style={{
+                        width: `${Math.min(100, (amount / maxSales) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="w-20 text-right font-semibold">
+                    {amount.toFixed(2)} KM
+                  </span>
                 </div>
-                <span className="w-20 text-right font-semibold">
-                  {d.amount.toFixed(2)} KM
-                </span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

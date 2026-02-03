@@ -48,17 +48,48 @@ export default function CommercialOrdersPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [ordersRes, clientsRes] = await Promise.all([
-        fetch("/api/orders?mine=1"),
-        fetch("/api/clients"),
-      ]);
-      const [ordersData, clientsData] = await Promise.all([
-        ordersRes.json(),
-        clientsRes.json(),
-      ]);
-      setOrders(ordersData);
-      setClients(clientsData);
-      setLoading(false);
+      try {
+        const [ordersRes, clientsRes] = await Promise.all([
+          fetch("/api/orders?mine=1").catch(err => {
+            console.error("Error fetching orders:", err);
+            return null;
+          }),
+          fetch("/api/clients").catch(err => {
+            console.error("Error fetching clients:", err);
+            return null;
+          }),
+        ]);
+        
+        if (ordersRes && ordersRes.ok) {
+          try {
+            const ordersData = await ordersRes.json();
+            setOrders(Array.isArray(ordersData) ? ordersData : []);
+          } catch (jsonError) {
+            console.error("Error parsing orders JSON:", jsonError);
+            setOrders([]);
+          }
+        } else {
+          setOrders([]);
+        }
+        
+        if (clientsRes && clientsRes.ok) {
+          try {
+            const clientsData = await clientsRes.json();
+            setClients(Array.isArray(clientsData) ? clientsData : []);
+          } catch (jsonError) {
+            console.error("Error parsing clients JSON:", jsonError);
+            setClients([]);
+          }
+        } else {
+          setClients([]);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setOrders([]);
+        setClients([]);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
