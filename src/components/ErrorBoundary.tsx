@@ -42,8 +42,10 @@ export class ErrorBoundary extends Component<Props, State> {
               Aplikacija je naišla na neočekivanu grešku. Molimo osvježite stranicu.
             </p>
             <button
-              onClick={() => {
-                this.setState({ hasError: false, error: null });
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Ne resetuj state prije reload-a da ne uzrokuje beskonačnu petlju
                 window.location.reload();
               }}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"

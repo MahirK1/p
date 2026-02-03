@@ -1,9 +1,43 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+
+// Helper funkcija za sigurno formatiranje datuma (iOS Safari kompatibilnost)
+const safeFormatDate = (date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string => {
+  if (!date) return "—";
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return "—";
+    return dateObj.toLocaleDateString("bs-BA", options || {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  } catch (error) {
+    console.error("Error formatting date:", error, date);
+    return "—";
+  }
+};
+
+// Helper funkcija za sigurno formatiranje vremena (iOS Safari kompatibilnost)
+const safeFormatTime = (date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string => {
+  if (!date) return "—";
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return "—";
+    return dateObj.toLocaleTimeString("bs-BA", options || {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  } catch (error) {
+    console.error("Error formatting time:", error, date);
+    return "—";
+  }
+};
 
 type Visit = {
   id: string;
@@ -125,33 +159,80 @@ export default function CommercialVisitsPage() {
     reason: "",
   });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    const from = new Date(filterDateFrom);
-    const to = new Date(filterDateTo);
-    to.setHours(23, 59, 59, 999);
-    
-    let url = `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`;
-    if (filterStatus) {
-      url += `&status=${filterStatus}`;
+    try {
+      // Sigurno kreiranje datuma (iOS Safari kompatibilnost)
+      let from: Date;
+      let to: Date;
+      try {
+        from = new Date(filterDateFrom);
+        to = new Date(filterDateTo);
+        to.setHours(23, 59, 59, 999);
+        if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+          throw new Error("Invalid date");
+        }
+      } catch (dateError) {
+        console.error("Error parsing dates:", dateError);
+        // Fallback na default datume
+        from = new Date();
+        from.setDate(from.getDate() - 7);
+        to = new Date();
+        to.setDate(to.getDate() + 30);
+        to.setHours(23, 59, 59, 999);
+      }
+      
+      let url = `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`;
+      if (filterStatus) {
+        url += `&status=${filterStatus}`;
+      }
+      
+      const [visitsRes, clientsRes] = await Promise.all([
+        fetch(url).catch(err => {
+          console.error("Error fetching visits:", err);
+          return null;
+        }),
+        fetch("/api/clients").catch(err => {
+          console.error("Error fetching clients:", err);
+          return null;
+        }),
+      ]);
+      
+      if (visitsRes && visitsRes.ok) {
+        try {
+          const visitsData = await visitsRes.json();
+          setVisits(visitsData.visits || (Array.isArray(visitsData) ? visitsData : []));
+        } catch (jsonError) {
+          console.error("Error parsing visits JSON:", jsonError);
+          setVisits([]);
+        }
+      } else {
+        setVisits([]);
+      }
+      
+      if (clientsRes && clientsRes.ok) {
+        try {
+          const clientsData = await clientsRes.json();
+          setClients(Array.isArray(clientsData) ? clientsData : []);
+        } catch (jsonError) {
+          console.error("Error parsing clients JSON:", jsonError);
+          setClients([]);
+        }
+      } else {
+        setClients([]);
+      }
+    } catch (error) {
+      console.error("Error loading visits:", error);
+      setVisits([]);
+      setClients([]);
+    } finally {
+      setLoading(false);
     }
-    
-    const [visitsRes, clientsRes] = await Promise.all([
-      fetch(url),
-      fetch("/api/clients"),
-    ]);
-    const [visitsData, clientsData] = await Promise.all([
-      visitsRes.json(),
-      clientsRes.json(),
-    ]);
-    setVisits(visitsData);
-    setClients(clientsData);
-    setLoading(false);
-  };
+  }, [filterStatus, filterDateFrom, filterDateTo]);
 
   useEffect(() => {
     load();
-  }, [filterStatus, filterDateFrom, filterDateTo]);
+  }, [load]);
 
   // Zatvori dropdown kada klikneš van njega
   useEffect(() => {
@@ -197,7 +278,7 @@ export default function CommercialVisitsPage() {
     return selectedClient.branches;
   }, [selectedClient]);
 
-  const handleCompleteClick = (visit: Visit) => {
+  const handleCompleteClick = useCallback((visit: Visit) => {
     // Ne dozvoli završavanje otkazane posjete
     if (visit.status === "CANCELED") {
       showToast("Otkazana posjeta ne može biti označena kao završena.", "warning");
@@ -206,15 +287,30 @@ export default function CommercialVisitsPage() {
     // Prikaži modal za sve posjete kada se označavaju kao završene
     // Komercijalista može promijeniti datum/vrijeme, dodati kontakt osobu i napomenu
     setSelectedVisit(visit);
-    const scheduledDate = new Date(visit.scheduledAt);
-    setCompletionForm({
-      date: scheduledDate.toISOString().slice(0, 10),
-      time: scheduledDate.toTimeString().slice(0, 5),
-      contactPerson: "",
-      note: "",
-    });
+    try {
+      const scheduledDate = new Date(visit.scheduledAt);
+      if (isNaN(scheduledDate.getTime())) {
+        throw new Error("Invalid date");
+      }
+      setCompletionForm({
+        date: scheduledDate.toISOString().slice(0, 10),
+        time: scheduledDate.toTimeString().slice(0, 5),
+        contactPerson: "",
+        note: "",
+      });
+    } catch (error) {
+      console.error("Error parsing scheduled date:", error);
+      // Fallback na trenutni datum
+      const now = new Date();
+      setCompletionForm({
+        date: now.toISOString().slice(0, 10),
+        time: now.toTimeString().slice(0, 5),
+        contactPerson: "",
+        note: "",
+      });
+    }
     setCompletionModalOpen(true);
-  };
+  }, [showToast]);
 
   const handleCancelClick = (visit: Visit) => {
     // Ne dozvoli otkazivanje završene posjete
@@ -527,7 +623,7 @@ export default function CommercialVisitsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">Datum:</span>
                         <span className="font-medium">
-                          {new Date(v.scheduledAt).toLocaleDateString("bs-BA", {
+                          {safeFormatDate(v.scheduledAt, {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
@@ -537,7 +633,7 @@ export default function CommercialVisitsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">Vrijeme:</span>
                         <span className="font-medium">
-                          {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
+                          {safeFormatTime(v.scheduledAt, {
                             hour: "2-digit",
                             minute: "2-digit",
                             hour12: false,
@@ -608,14 +704,14 @@ export default function CommercialVisitsPage() {
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium">
-                          {new Date(v.scheduledAt).toLocaleDateString("bs-BA", {
+                          {safeFormatDate(v.scheduledAt, {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
                           })}
                         </div>
                         <div className="text-xs text-slate-500">
-                          {new Date(v.scheduledAt).toLocaleTimeString("bs-BA", {
+                          {safeFormatTime(v.scheduledAt, {
                             hour: "2-digit",
                             minute: "2-digit",
                             hour12: false,

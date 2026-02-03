@@ -67,31 +67,81 @@ function NewOrderPageContent() {
       router.push("/dashboard/commercial/orders");
       return;
     }
+    let cancelled = false;
     async function load() {
-      const [clientsRes, productsRes] = await Promise.all([
-        fetch("/api/clients"),
-        fetch("/api/products"),
-      ]);
-      const [clientsData, productsData] = await Promise.all([
-        clientsRes.json(),
-        productsRes.json(),
-      ]);
+      try {
+        const [clientsRes, productsRes] = await Promise.all([
+          fetch("/api/clients").catch(err => {
+            console.error("Error fetching clients:", err);
+            return null;
+          }),
+          fetch("/api/products").catch(err => {
+            console.error("Error fetching products:", err);
+            return null;
+          }),
+        ]);
 
-      const foundClient = clientsData.find((c: Client) => c.id === clientId);
-      setClient(foundClient ?? null);
+        if (cancelled) return;
 
-      // Ako postoji branchId, pronađi branch
-      if (branchId && foundClient?.branches) {
-        const foundBranch = foundClient.branches.find((b: ClientBranch) => b.id === branchId);
-        setBranch(foundBranch ?? null);
-      } else {
-        setBranch(null);
+        if (clientsRes && clientsRes.ok) {
+          try {
+            const clientsData = await clientsRes.json();
+            if (cancelled) return;
+            const foundClient = clientsData.find((c: Client) => c.id === clientId);
+            setClient(foundClient ?? null);
+
+            // Ako postoji branchId, pronađi branch
+            if (branchId && foundClient?.branches) {
+              const foundBranch = foundClient.branches.find((b: ClientBranch) => b.id === branchId);
+              setBranch(foundBranch ?? null);
+            } else {
+              setBranch(null);
+            }
+          } catch (jsonError) {
+            console.error("Error parsing clients JSON:", jsonError);
+            if (!cancelled) {
+              setClient(null);
+              setBranch(null);
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setClient(null);
+            setBranch(null);
+          }
+        }
+
+        if (productsRes && productsRes.ok) {
+          try {
+            const productsData = await productsRes.json();
+            if (!cancelled) {
+              setProducts(Array.isArray(productsData) ? productsData : []);
+            }
+          } catch (jsonError) {
+            console.error("Error parsing products JSON:", jsonError);
+            if (!cancelled) {
+              setProducts([]);
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setProducts([]);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
+        if (!cancelled) {
+          setClient(null);
+          setBranch(null);
+          setProducts([]);
+        }
       }
-
-      setProducts(productsData);
     }
     load();
-  }, [clientId, branchId, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, branchId]); // Uklonjen router iz dependency array-a
 
   // Ažuriraj invoiceData useMemo
   const invoiceData = useMemo(() => {

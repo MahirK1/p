@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -65,12 +65,18 @@ export function MobileSidebar() {
   }, [open]);
 
   // Funkcija koja se poziva kada se klikne na link
-  const handleLinkClick = () => {
+  const handleLinkClick = useCallback(() => {
     // Zatvori sidebar na mobile (samo ako je otvoren)
-    if (window.innerWidth < 768) {
-      setOpen(false);
+    // Koristi try-catch za sigurnost na iOS Safari
+    try {
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setOpen(false);
+      }
+    } catch (error) {
+      console.error("Error in handleLinkClick:", error);
+      setOpen(false); // Fallback - zatvori sidebar
     }
-  };
+  }, []);
 
   return (
     <>
