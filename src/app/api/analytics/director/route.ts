@@ -222,6 +222,7 @@ export async function GET(req: NextRequest) {
     visitsCount: number;
     visitsDone: number;
     visitsWithOrders: number;
+    avgDaysToOrder: number;
     orderDates: Date[];
     visitDates: Date[];
   }>();
@@ -235,6 +236,7 @@ export async function GET(req: NextRequest) {
       visitsCount: 0,
       visitsDone: 0,
       visitsWithOrders: 0,
+      avgDaysToOrder: 0,
       orderDates: [],
       visitDates: [],
     };
@@ -253,6 +255,7 @@ export async function GET(req: NextRequest) {
       visitsCount: 0,
       visitsDone: 0,
       visitsWithOrders: 0,
+      avgDaysToOrder: 0,
       orderDates: [],
       visitDates: [],
     };
