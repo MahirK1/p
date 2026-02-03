@@ -51,23 +51,38 @@ export default function CommercialDetailPage({
   params: Promise<{ id: string }>;
 }) {
   // VAŽNO: Svi hooks se moraju pozvati u istom redoslijedu, bez conditional logike
+  // Redoslijed: useContext hooks prvo, zatim useState, zatim useMemo, zatim useEffect
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { id } = use(params);
+  
+  // useState hooks - moraju biti prije useMemo
   const [data, setData] = useState<CommercialAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Koristi searchParams nakon što su svi hooks pozvani - koristi useMemo da osigura konzistentnost
+  // useMemo hooks - moraju biti prije useEffect
   const selectedYear = useMemo(() => {
-    return Number(searchParams?.get("year") ?? new Date().getFullYear());
+    try {
+      return Number(searchParams?.get("year") ?? new Date().getFullYear());
+    } catch {
+      return new Date().getFullYear();
+    }
   }, [searchParams]);
   
   const selectedMonth = useMemo(() => {
-    return Number(searchParams?.get("month") ?? new Date().getMonth() + 1);
+    try {
+      return Number(searchParams?.get("month") ?? new Date().getMonth() + 1);
+    } catch {
+      return new Date().getMonth() + 1;
+    }
   }, [searchParams]);
 
+  // useEffect hook - mora biti posljednji
+  // showToast je stabilna funkcija iz useCallback, ali je bolje da je u dependency array-u
   useEffect(() => {
+    if (!id) return;
+    
     const loadData = async () => {
       setLoading(true);
       try {
@@ -89,7 +104,7 @@ export default function CommercialDetailPage({
 
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, selectedYear, selectedMonth]);
+  }, [id, selectedYear, selectedMonth]); // showToast je stabilna funkcija, ne treba biti u dependency array-u
 
   // Early return mora biti NAKON svih hooks poziva
   if (loading || !data) {

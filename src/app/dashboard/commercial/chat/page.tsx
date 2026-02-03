@@ -16,7 +16,7 @@ export default function CommercialChatPage() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)] gap-0 md:gap-4 p-0 md:p-4 bg-slate-50">
+    <div className="flex flex-col md:flex-row gap-0 md:gap-4 p-0 md:p-4 bg-slate-50" style={{ height: 'calc(100dvh - 4rem)' }}>
       {/* Mobile notification button */}
       <div className="md:hidden flex justify-end p-4 pb-2 bg-white border-b border-slate-200">
         <PushNotificationButton />

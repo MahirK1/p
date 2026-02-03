@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Pagination } from "@/components/ui/Pagination";
 
 // Helper funkcija za sigurno formatiranje datuma (iOS Safari kompatibilnost)
 const safeFormatDate = (date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string => {
@@ -105,7 +106,18 @@ type ManagerAnalytics = {
     clientId: string;
     client: string;
     lastOrderDate: Date | null;
+    firstOrderDate: Date;
     monthsSinceLastOrder: number;
+  }>;
+  unvisitedBranches?: Array<{
+    branchId: string;
+    branchName: string;
+    clientId: string;
+    clientName: string;
+    lastVisitDate: Date | null;
+    monthsSinceLastVisit: number;
+    commercialId: string | null;
+    commercialName: string | null;
   }>;
   cancellationReasons?: Array<{ reason: string; count: number }>;
   visitsWithoutOrders?: Array<{
@@ -188,6 +200,18 @@ export default function ManagerDashboardPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedCommercialId, setSelectedCommercialId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "commercials" | "products" | "clients" | "advanced">("overview");
+  
+  // Pagination states za različite tabele
+  const [performanceRankingPage, setPerformanceRankingPage] = useState(1);
+  const [salesByCommercialPage, setSalesByCommercialPage] = useState(1);
+  const [achievementPage, setAchievementPage] = useState(1);
+  const [topProductsPage, setTopProductsPage] = useState(1);
+  const [topClientsPage, setTopClientsPage] = useState(1);
+  const [visitsWithoutOrdersPage, setVisitsWithoutOrdersPage] = useState(1);
+  const [unvisitedBranchesPage, setUnvisitedBranchesPage] = useState(1);
+  const [clvPage, setClvPage] = useState(1);
+  
+  const itemsPerPage = 10;
 
   const loadCommercials = async () => {
     try {
@@ -567,7 +591,13 @@ export default function ManagerDashboardPage() {
       {activeTab === "commercials" && (
         <>
           {/* Performance Ranking */}
-          {data.performanceRanking.length > 0 && (
+          {data.performanceRanking.length > 0 && (() => {
+            const totalPages = Math.ceil(data.performanceRanking.length / itemsPerPage);
+            const startIndex = (performanceRankingPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedData = data.performanceRanking.slice(startIndex, endIndex);
+            
+            return (
             <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
@@ -589,7 +619,7 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.performanceRanking.map((com) => (
+                    {paginatedData.map((com) => (
                       <tr
                         key={com.commercialId}
                         className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
@@ -643,10 +673,20 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={performanceRankingPage}
+                  totalPages={totalPages}
+                  onPageChange={setPerformanceRankingPage}
+                  totalItems={data.performanceRanking.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
 
               {/* Mobile card view */}
               <div className="md:hidden space-y-3 p-4">
-                {data.performanceRanking.map((com) => (
+                {paginatedData.map((com) => (
                   <div
                     key={com.commercialId}
                     onClick={() =>
@@ -705,10 +745,30 @@ export default function ManagerDashboardPage() {
                   </div>
                 ))}
               </div>
+              
+              {totalPages > 1 && (
+                <div className="md:hidden">
+                  <Pagination
+                    currentPage={performanceRankingPage}
+                    totalPages={totalPages}
+                    onPageChange={setPerformanceRankingPage}
+                    totalItems={data.performanceRanking.length}
+                    itemsPerPage={itemsPerPage}
+                  />
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Prodaja po komercijalisti */}
+          {(() => {
+            const totalPages = Math.ceil(filteredCommercials.length / itemsPerPage);
+            const startIndex = (salesByCommercialPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedCommercials = filteredCommercials.slice(startIndex, endIndex);
+            
+            return (
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900">
@@ -730,7 +790,7 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCommercials.map((com) => (
+                  {paginatedCommercials.map((com) => (
                     <tr
                       key={com.commercialId}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
@@ -777,7 +837,7 @@ export default function ManagerDashboardPage() {
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {filteredCommercials.map((com) => (
+              {paginatedCommercials.map((com) => (
                 <div
                   key={com.commercialId}
                   onClick={() =>
@@ -825,10 +885,30 @@ export default function ManagerDashboardPage() {
                 </div>
               ))}
             </div>
+            
+            {totalPages > 1 && (
+              <div className="md:hidden">
+                <Pagination
+                  currentPage={salesByCommercialPage}
+                  totalPages={totalPages}
+                  onPageChange={setSalesByCommercialPage}
+                  totalItems={filteredCommercials.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              </div>
+            )}
           </div>
+          );
+          })()}
 
           {/* Achievement po komercijalisti */}
-          {data.achievementByCommercial.length > 0 && (
+          {data.achievementByCommercial.length > 0 && (() => {
+            const totalPages = Math.ceil(data.achievementByCommercial.length / itemsPerPage);
+            const startIndex = (achievementPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedAchievements = data.achievementByCommercial.slice(startIndex, endIndex);
+            
+            return (
             <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
@@ -848,7 +928,7 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.achievementByCommercial.map((ach, idx) => (
+                    {paginatedAchievements.map((ach, idx) => (
                       <tr
                         key={`${ach.commercialId}-${idx}`}
                         className="border-t border-slate-100 hover:bg-slate-50 transition"
@@ -885,10 +965,20 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={achievementPage}
+                  totalPages={totalPages}
+                  onPageChange={setAchievementPage}
+                  totalItems={data.achievementByCommercial.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
 
               {/* Mobile card view */}
               <div className="md:hidden space-y-3 p-4">
-                {data.achievementByCommercial.map((ach, idx) => (
+                {paginatedAchievements.map((ach, idx) => (
                   <div
                     key={`${ach.commercialId}-${idx}`}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
@@ -929,14 +1019,34 @@ export default function ManagerDashboardPage() {
                   </div>
                 ))}
               </div>
+              
+              {totalPages > 1 && (
+                <div className="md:hidden">
+                  <Pagination
+                    currentPage={achievementPage}
+                    totalPages={totalPages}
+                    onPageChange={setAchievementPage}
+                    totalItems={data.achievementByCommercial.length}
+                    itemsPerPage={itemsPerPage}
+                  />
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
         </>
       )}
 
       {activeTab === "products" && (
         <>
           {/* Top proizvodi */}
+          {(() => {
+            const totalPages = Math.ceil(data.topProducts.length / itemsPerPage);
+            const startIndex = (topProductsPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedProducts = data.topProducts.slice(startIndex, endIndex);
+            
+            return (
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900">Top proizvodi</h2>
@@ -954,7 +1064,7 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.topProducts.map((product) => (
+                  {paginatedProducts.map((product) => (
                     <tr
                       key={product.productId}
                       className="border-t border-slate-100 hover:bg-slate-50 transition"
@@ -977,10 +1087,20 @@ export default function ManagerDashboardPage() {
                 </tbody>
               </table>
             </div>
+            
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={topProductsPage}
+                totalPages={totalPages}
+                onPageChange={setTopProductsPage}
+                totalItems={data.topProducts.length}
+                itemsPerPage={itemsPerPage}
+              />
+            )}
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {data.topProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div
                   key={product.productId}
                   className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
@@ -1008,7 +1128,21 @@ export default function ManagerDashboardPage() {
                 </div>
               ))}
             </div>
+            
+            {totalPages > 1 && (
+              <div className="md:hidden">
+                <Pagination
+                  currentPage={topProductsPage}
+                  totalPages={totalPages}
+                  onPageChange={setTopProductsPage}
+                  totalItems={data.topProducts.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              </div>
+            )}
           </div>
+          );
+          })()}
 
           {/* Prodaja po brendu */}
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -1046,6 +1180,13 @@ export default function ManagerDashboardPage() {
       {activeTab === "clients" && (
         <>
           {/* Top klijenti */}
+          {(() => {
+            const totalPages = Math.ceil(data.topClients.length / itemsPerPage);
+            const startIndex = (topClientsPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedClients = data.topClients.slice(startIndex, endIndex);
+            
+            return (
           <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-900">Top klijenti</h2>
@@ -1062,7 +1203,7 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.topClients.map((client) => (
+                  {paginatedClients.map((client) => (
                     <tr
                       key={client.clientId}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
@@ -1083,13 +1224,23 @@ export default function ManagerDashboardPage() {
                         {(client.amount / client.ordersCount).toFixed(2)} KM
                       </td>
                     </tr>
-                  ))}
+                    ))}
                 </tbody>
               </table>
               {data.topClients.length === 0 && (
                 <div className="flex items-center justify-center p-12">
                   <LoadingSpinner size="md" />
                 </div>
+              )}
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={topClientsPage}
+                  totalPages={totalPages}
+                  onPageChange={setTopClientsPage}
+                  totalItems={data.topClients.length}
+                  itemsPerPage={itemsPerPage}
+                />
               )}
             </div>
 
@@ -1100,7 +1251,7 @@ export default function ManagerDashboardPage() {
                   <LoadingSpinner size="md" />
                 </div>
               ) : (
-                data.topClients.map((client) => (
+                paginatedClients.map((client) => (
                   <div
                     key={client.clientId}
                     onClick={() =>
@@ -1129,7 +1280,21 @@ export default function ManagerDashboardPage() {
                 ))
               )}
             </div>
+            
+            {totalPages > 1 && (
+              <div className="md:hidden">
+                <Pagination
+                  currentPage={topClientsPage}
+                  totalPages={totalPages}
+                  onPageChange={setTopClientsPage}
+                  totalItems={data.topClients.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              </div>
+            )}
           </div>
+          );
+          })()}
         </>
       )}
 
@@ -1248,7 +1413,13 @@ export default function ManagerDashboardPage() {
           )}
 
           {/* Posjete bez narudžbi */}
-          {data.visitsWithoutOrders && data.visitsWithoutOrders.length > 0 && (
+          {data.visitsWithoutOrders && data.visitsWithoutOrders.length > 0 && (() => {
+            const totalPages = Math.ceil(data.visitsWithoutOrders.length / itemsPerPage);
+            const startIndex = (visitsWithoutOrdersPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedVisits = data.visitsWithoutOrders.slice(startIndex, endIndex);
+            
+            return (
             <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
@@ -1269,7 +1440,7 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.visitsWithoutOrders.map((visit) => (
+                    {paginatedVisits.map((visit) => (
                       <tr
                         key={visit.visitId}
                         className="border-t border-slate-100 hover:bg-slate-50 transition"
@@ -1293,8 +1464,19 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={visitsWithoutOrdersPage}
+                  totalPages={totalPages}
+                  onPageChange={setVisitsWithoutOrdersPage}
+                  totalItems={data.visitsWithoutOrders.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
+              
               <div className="md:hidden space-y-3 p-4">
-                {data.visitsWithoutOrders.map((visit) => (
+                {paginatedVisits.map((visit) => (
                   <div
                     key={visit.visitId}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
@@ -1319,15 +1501,147 @@ export default function ManagerDashboardPage() {
                   </div>
                 ))}
               </div>
+              
+              {totalPages > 1 && (
+                <div className="md:hidden">
+                  <Pagination
+                    currentPage={visitsWithoutOrdersPage}
+                    totalPages={totalPages}
+                    onPageChange={setVisitsWithoutOrdersPage}
+                    totalItems={data.visitsWithoutOrders.length}
+                    itemsPerPage={itemsPerPage}
+                  />
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
-          {/* Customer Lifetime Value */}
-          {data.customerLifetimeValue && data.customerLifetimeValue.length > 0 && (
+          {/* Apoteke koje nisu posjećene 3+ mjeseca */}
+          {data.unvisitedBranches && data.unvisitedBranches.length > 0 && (() => {
+            const totalPages = Math.ceil(data.unvisitedBranches.length / itemsPerPage);
+            const startIndex = (unvisitedBranchesPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedBranches = data.unvisitedBranches.slice(startIndex, endIndex);
+            
+            return (
             <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
               <div className="border-b border-slate-100 px-6 py-4">
                 <h2 className="text-lg font-semibold text-slate-900">
-                  Customer Lifetime Value (Top 20)
+                  Apoteke koje nisu posjećene 3+ mjeseca
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Apoteke koje nisu posjećene ili nisu posjećene više od 3 mjeseca
+                </p>
+              </div>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Apoteka</th>
+                      <th className="px-4 py-3 text-left">Klijent</th>
+                      <th className="px-4 py-3 text-right">Posljednja posjeta</th>
+                      <th className="px-4 py-3 text-right">Mjeseci bez posjete</th>
+                      <th className="px-4 py-3 text-left">Komercijalista</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {paginatedBranches.map((branch) => (
+                      <tr key={branch.branchId} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-800">{branch.branchName}</td>
+                        <td className="px-4 py-3 text-slate-600">{branch.clientName}</td>
+                        <td className="px-4 py-3 text-right text-slate-600">
+                          {branch.lastVisitDate
+                            ? safeFormatDate(branch.lastVisitDate, {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })
+                            : "Nikad"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className={`font-semibold ${branch.monthsSinceLastVisit >= 999 ? "text-red-600" : "text-orange-600"}`}>
+                            {branch.monthsSinceLastVisit >= 999 ? "Nikad" : `${branch.monthsSinceLastVisit} mj.`}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">
+                          {branch.commercialName || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={unvisitedBranchesPage}
+                  totalPages={totalPages}
+                  onPageChange={setUnvisitedBranchesPage}
+                  totalItems={data.unvisitedBranches.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
+              
+              <div className="md:hidden space-y-3 p-4">
+                {paginatedBranches.map((branch) => (
+                  <div
+                    key={branch.branchId}
+                    className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                  >
+                    <div className="font-medium text-slate-800">{branch.branchName}</div>
+                    <div className="text-sm text-slate-600">Klijent: {branch.clientName}</div>
+                    <div className="text-sm text-slate-600">
+                      Posljednja posjeta:{" "}
+                      {branch.lastVisitDate
+                        ? safeFormatDate(branch.lastVisitDate, {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })
+                        : "Nikad"}
+                    </div>
+                    <div className="text-sm">
+                      <span className={`font-semibold ${branch.monthsSinceLastVisit >= 999 ? "text-red-600" : "text-orange-600"}`}>
+                        {branch.monthsSinceLastVisit >= 999 ? "Nikad posjećeno" : `${branch.monthsSinceLastVisit} mj. bez posjete`}
+                      </span>
+                    </div>
+                    {branch.commercialName && (
+                      <div className="text-xs text-slate-500">
+                        Komercijalista: {branch.commercialName}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {totalPages > 1 && (
+                <div className="md:hidden">
+                  <Pagination
+                    currentPage={unvisitedBranchesPage}
+                    totalPages={totalPages}
+                    onPageChange={setUnvisitedBranchesPage}
+                    totalItems={data.unvisitedBranches.length}
+                    itemsPerPage={itemsPerPage}
+                  />
+                </div>
+              )}
+            </div>
+            );
+          })()}
+
+          {/* Customer Lifetime Value */}
+          {data.customerLifetimeValue && data.customerLifetimeValue.length > 0 && (() => {
+            const totalPages = Math.ceil(data.customerLifetimeValue.length / itemsPerPage);
+            const startIndex = (clvPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedClv = data.customerLifetimeValue.slice(startIndex, endIndex);
+            
+            return (
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-6 py-4">
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Customer Lifetime Value
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Najvrijedniji klijenti po ukupnoj prodaji kroz historiju
@@ -1346,7 +1660,7 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.customerLifetimeValue.map((client) => (
+                    {paginatedClv.map((client) => (
                       <tr
                         key={client.clientId}
                         className="border-t border-slate-100 hover:bg-slate-50 transition"
@@ -1374,8 +1688,19 @@ export default function ManagerDashboardPage() {
                   </tbody>
                 </table>
               </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={clvPage}
+                  totalPages={totalPages}
+                  onPageChange={setClvPage}
+                  totalItems={data.customerLifetimeValue.length}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
+              
               <div className="md:hidden space-y-3 p-4">
-                {data.customerLifetimeValue.map((client) => (
+                {paginatedClv.map((client) => (
                   <div
                     key={client.clientId}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
@@ -1398,8 +1723,21 @@ export default function ManagerDashboardPage() {
                   </div>
                 ))}
               </div>
+              
+              {totalPages > 1 && (
+                <div className="md:hidden">
+                  <Pagination
+                    currentPage={clvPage}
+                    totalPages={totalPages}
+                    onPageChange={setClvPage}
+                    totalItems={data.customerLifetimeValue.length}
+                    itemsPerPage={itemsPerPage}
+                  />
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Proizvodi u padu/rastu */}
           {data.productsTrending && (

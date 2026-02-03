@@ -431,6 +431,7 @@ export async function GET(req: NextRequest) {
   )).length;
 
   // 3. Churn analiza (klijenti bez narudžbi u posljednjih 3 mjeseca) - optimizovano
+  // PRIKAZUJE SAMO KLIJENTE KOJI SU IMALI BAREM JEDNU NARUDŽBU
   const churnThreshold = new Date(year, month - 1 - 3, 1);
   
   // Uzmi sve klijente koji su imali narudžbe
@@ -453,37 +454,49 @@ export async function GET(req: NextRequest) {
   });
   
   // Pronađi posljednju narudžbu po klijentu
-  const lastOrderByClient = new Map<string, { clientId: string; client: string; lastOrderDate: Date }>();
+  const lastOrderByClient = new Map<string, { clientId: string; client: string; lastOrderDate: Date; firstOrderDate: Date }>();
+  const firstOrderByClientChurn = new Map<string, Date>();
+  
   for (const order of clientsWithOrders) {
     if (!lastOrderByClient.has(order.clientId)) {
       lastOrderByClient.set(order.clientId, {
         clientId: order.clientId,
         client: order.client.name,
         lastOrderDate: order.createdAt,
+        firstOrderDate: order.createdAt,
       });
+      firstOrderByClientChurn.set(order.clientId, order.createdAt);
+    } else {
+      const existing = lastOrderByClient.get(order.clientId)!;
+      if (order.createdAt > existing.lastOrderDate) {
+        existing.lastOrderDate = order.createdAt;
+      }
+      if (order.createdAt < existing.firstOrderDate) {
+        existing.firstOrderDate = order.createdAt;
+      }
+      const firstDate = firstOrderByClientChurn.get(order.clientId)!;
+      if (order.createdAt < firstDate) {
+        firstOrderByClientChurn.set(order.clientId, order.createdAt);
+      }
     }
   }
   
-  // Uzmi sve klijente
-  const allClients = await prisma.client.findMany({
-    select: { id: true, name: true },
-  });
+  // Sada uzmi samo klijente koji su imali barem jednu narudžbu (ne sve klijente)
+  const churnedClients: Array<{ clientId: string; client: string; lastOrderDate: Date; firstOrderDate: Date; monthsSinceLastOrder: number }> = [];
+  const nowChurn = new Date();
   
-  const churnedClients: Array<{ clientId: string; client: string; lastOrderDate: Date | null; monthsSinceLastOrder: number }> = [];
-  const now = new Date();
-  
-  for (const client of allClients) {
-    const lastOrderInfo = lastOrderByClient.get(client.id);
-    const lastOrderDate = lastOrderInfo?.lastOrderDate;
+  for (const [clientId, orderInfo] of lastOrderByClient.entries()) {
+    const lastOrderDate = orderInfo.lastOrderDate;
+    const firstOrderDate = firstOrderByClientChurn.get(clientId) || lastOrderDate;
     
-    if (!lastOrderDate || lastOrderDate < churnThreshold) {
-      const monthsSince = lastOrderDate
-        ? Math.floor((now.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
-        : 999;
+    // Klijent je u riziku ako nije imao narudžbu u posljednjih 3 mjeseca
+    if (lastOrderDate < churnThreshold) {
+      const monthsSince = Math.floor((nowChurn.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
       churnedClients.push({
-        clientId: client.id,
-        client: client.name,
-        lastOrderDate: lastOrderDate || null,
+        clientId: orderInfo.clientId,
+        client: orderInfo.client,
+        lastOrderDate: lastOrderDate,
+        firstOrderDate: firstOrderDate,
         monthsSinceLastOrder: monthsSince,
       });
     }
@@ -553,6 +566,126 @@ export async function GET(req: NextRequest) {
       }
     }
   }
+
+  // 6. Apoteke koje nisu posjećene 3+ mjeseca
+  const threeMonthsAgo = new Date(year, month - 1 - 3, 1);
+  
+  // Uzmi sve brancheve koji su ikad posjećeni
+  const allVisitsWithBranches = await prisma.visit.findMany({
+    where: {
+      status: "DONE",
+      ...commercialFilter,
+    },
+    include: {
+      branches: {
+        include: {
+          branch: {
+            include: {
+              client: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      commercial: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: { scheduledAt: "desc" },
+  });
+  
+  // Pronađi posljednju posjetu po branchu
+  const lastVisitByBranch = new Map<string, {
+    branchId: string;
+    branchName: string;
+    clientId: string;
+    clientName: string;
+    lastVisitDate: Date;
+    commercialId: string;
+    commercialName: string;
+  }>();
+  
+  for (const visit of allVisitsWithBranches) {
+    for (const visitBranch of visit.branches) {
+      const branchId = visitBranch.branchId;
+      if (!lastVisitByBranch.has(branchId)) {
+        lastVisitByBranch.set(branchId, {
+          branchId: branchId,
+          branchName: visitBranch.branch.name,
+          clientId: visitBranch.branch.clientId,
+          clientName: visitBranch.branch.client.name,
+          lastVisitDate: visit.scheduledAt,
+          commercialId: visit.commercialId,
+          commercialName: visit.commercial.name,
+        });
+      } else {
+        const existing = lastVisitByBranch.get(branchId)!;
+        if (visit.scheduledAt > existing.lastVisitDate) {
+          existing.lastVisitDate = visit.scheduledAt;
+          existing.commercialId = visit.commercialId;
+          existing.commercialName = visit.commercial.name;
+        }
+      }
+    }
+  }
+  
+  // Uzmi sve brancheve koji su ikad bili u sistemu
+  const allBranches = await prisma.clientBranch.findMany({
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+  
+  const unvisitedBranches: Array<{
+    branchId: string;
+    branchName: string;
+    clientId: string;
+    clientName: string;
+    lastVisitDate: Date | null;
+    monthsSinceLastVisit: number;
+    commercialId: string | null;
+    commercialName: string | null;
+  }> = [];
+  
+  const nowBranches = new Date();
+  
+  for (const branch of allBranches) {
+    const lastVisitInfo = lastVisitByBranch.get(branch.id);
+    const lastVisitDate = lastVisitInfo?.lastVisitDate || null;
+    
+    // Branch nije posjećen ili nije posjećen 3+ mjeseca
+    if (!lastVisitDate || lastVisitDate < threeMonthsAgo) {
+      const monthsSince = lastVisitDate
+        ? Math.floor((nowBranches.getTime() - lastVisitDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
+        : 999;
+      unvisitedBranches.push({
+        branchId: branch.id,
+        branchName: branch.name,
+        clientId: branch.clientId,
+        clientName: branch.client.name,
+        lastVisitDate: lastVisitDate,
+        monthsSinceLastVisit: monthsSince,
+        commercialId: lastVisitInfo?.commercialId || null,
+        commercialName: lastVisitInfo?.commercialName || null,
+      });
+    }
+  }
+  
+  // Sortiraj po mjesecima bez posjete (najduže prvo) i uzmi top 100
+  unvisitedBranches.sort((a, b) => b.monthsSinceLastVisit - a.monthsSinceLastVisit);
+  const topUnvisitedBranches = unvisitedBranches.slice(0, 100);
 
   // ========== ANALITIKE SREDNJEG PRIORITETA ==========
   
@@ -924,6 +1057,7 @@ export async function GET(req: NextRequest) {
     churnedClients: topChurnedClients,
     cancellationReasons: cancellationReasons,
     visitsWithoutOrders: visitsWithoutOrders,
+    unvisitedBranches: topUnvisitedBranches,
     // ANALITIKE SREDNJEG PRIORITETA
     customerLifetimeValue: topCLVClients,
     productsTrending: {

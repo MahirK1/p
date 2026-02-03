@@ -5,7 +5,7 @@ import { MobileSidebar } from "@/components/layout/MobileSidebar";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex bg-slate-50 overflow-hidden" style={{ height: '100dvh' }}>
       {/* Sidebar - desktop */}
       <div className="print:hidden hidden md:block flex-shrink-0">
         <MobileSidebar />

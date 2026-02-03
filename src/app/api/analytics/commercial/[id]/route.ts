@@ -9,7 +9,7 @@ export async function GET(
 ) {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
-  if (!session || !["MANAGER", "ADMIN"].includes(user.role)) {
+  if (!session || !["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

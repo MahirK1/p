@@ -79,7 +79,7 @@ export default function ManagerChatPage() {
     <div className="fixed inset-0 md:static w-full h-full bg-slate-50 overflow-hidden pt-[var(--header-height,0)]">
       
       {/* GRID CONTAINER: Striktno dijeli ekran na 2 dijela na desktopu */}
-      <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)] md:h-[calc(100vh-2rem)] gap-0 md:gap-4 p-0 md:p-4 bg-slate-50">
+      <div className="flex flex-col md:flex-row gap-0 md:gap-4 p-0 md:p-4 bg-slate-50" style={{ height: 'calc(100dvh - 4rem)' }}>
         
         {/* LIJEVA KOLONA - SIDEBAR */}
         <div className={`
