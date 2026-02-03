@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="apple-touch-icon" href="/italgroup-logo.png" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="h-screen min-h-0 flex flex-col overflow-hidden">
+      <body className="h-[100dvh] min-h-0 flex flex-col overflow-hidden" suppressHydrationWarning>
   <ErrorBoundary>
     <AuthSessionProvider>
       <ToastProvider>
