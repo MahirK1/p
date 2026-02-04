@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
   }
 
   let targetCommercialId = commercialId;
-  if (!["MANAGER", "ADMIN"].includes(user.role)) {
+  if (!["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role)) {
     targetCommercialId = user.id;
   }
   if (!targetCommercialId) {
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const isManagerCreating = ["MANAGER", "ADMIN"].includes(user.role) && user.id !== targetCommercialId;
+  const isManagerCreating = ["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role) && user.id !== targetCommercialId;
 
   // Normalizuj branchIds - ako nije array, pretvori u array ili prazan array
   const branchIdsArray = Array.isArray(branchIds) ? branchIds.filter(id => id && id.trim()) : [];
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     data: {
       clientId: finalClientId,
       commercialId: targetCommercialId,
-      managerId: ["MANAGER", "ADMIN"].includes(user.role) ? user.id : null,
+      managerId: ["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role) ? user.id : null,
       scheduledAt: new Date(scheduledAt),
       note: note ?? "",
       status: "PLANNED",
@@ -367,7 +367,7 @@ export async function DELETE(req: NextRequest) {
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
   const user = session.user as any;
 
-  if (!["MANAGER", "ADMIN"].includes(user.role)) {
+  if (!["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 

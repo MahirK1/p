@@ -272,6 +272,15 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Narudžbe</span>}
               </Link>
+              <Link 
+                href="/dashboard/order-manager/chat" 
+                className={getLinkClass("/dashboard/order-manager/chat")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Chat" : undefined}
+              >
+                <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Chat</span>}
+              </Link>
             </>
           )}
 
@@ -285,6 +294,15 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <HomeIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Direktor dashboard</span>}
+              </Link>
+              <Link 
+                href="/dashboard/director/visits" 
+                className={getLinkClass("/dashboard/director/visits")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Planiranje posjeta" : undefined}
+              >
+                <UsersIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Planirane posjete</span>}
               </Link>
             </>
           )}

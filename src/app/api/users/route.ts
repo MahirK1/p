@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
     where.role = role;
   }
 
-  // Manager može vidjeti samo COMMERCIAL korisnike
-  if (user.role === "MANAGER") {
+  // Manager, Order Manager i Director mogu vidjeti samo COMMERCIAL korisnike
+  if (user.role === "MANAGER" || user.role === "ORDER_MANAGER" || user.role === "DIRECTOR") {
     if (role && role !== "COMMERCIAL") {
       return NextResponse.json(
         { error: "Forbidden" },

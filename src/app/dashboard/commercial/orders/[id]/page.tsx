@@ -100,6 +100,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
     doc.setFont("helvetica", "bold");
     doc.text("#", margin + 2, tableTop + 6);
     doc.text("Artikal", margin + 10, tableTop + 6);
+    doc.text("Kataloški broj", margin + 20, tableTop + 6);
     doc.text("Kol.", margin + 75, tableTop + 6);
     doc.text("Cijena", margin + 95, tableTop + 6);
     doc.text("Rabat", margin + 120, tableTop + 6);
@@ -124,6 +125,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
 
       doc.text(`${i + 1}`, margin + 2, yPos);
       doc.text(item.product.name, margin + 10, yPos);
+      
       if (item.product.sku) {
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
@@ -131,6 +133,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
         doc.setFontSize(10);
         doc.setTextColor(0, 0, 0);
       }
+      doc.text(item.product.catalogNumber ?? "", margin + 50, yPos, { align: "right" });
       doc.text(`${item.quantity}`, margin + 75, yPos, { align: "right" });
       doc.text(`${Number(item.unitPrice).toFixed(2)} KM`, margin + 95, yPos, { align: "right" });
       
@@ -314,6 +317,9 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
                   <th className="px-6 pb-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 print:px-2 print:pb-1 print:text-[10px]">
                     Artikal
                   </th>
+                  <th className="px-6 pb-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 print:px-2 print:pb-1 print:text-[10px]">
+                    Kataloški broj
+                  </th>
                   <th className="px-6 pb-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 print:px-2 print:pb-1 print:text-[10px]">
                     Kol.
                   </th>
@@ -345,6 +351,9 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
                         {item.product.sku && (
                           <div className="mt-0.5 text-xs text-slate-500 print:text-[8px] print:mt-0">{item.product.sku}</div>
                         )}
+                      </td>
+                      <td className="px-6 py-4 text-left text-sm text-slate-900 print:px-2 print:py-1 print:text-[10px]">
+                        {item.product.catalogNumber ?? ""}
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-slate-900 print:px-2 print:py-1 print:text-[10px]">
                         {item.quantity}

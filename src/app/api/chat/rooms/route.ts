@@ -12,7 +12,73 @@ export async function GET(req: NextRequest) {
   const userId = user.id as string;
   const role = user.role as "COMMERCIAL" | "MANAGER" | "ORDER_MANAGER" | "ADMIN";
 
-  // 1) GLOBALNA GRUPNA SOBA – svi komercijalisti + manageri
+  // Za ORDER_MANAGER: samo direktne sobe sa komercijalistima (bez grupne sobe)
+  if (role === "ORDER_MANAGER") {
+    const directRooms = await prisma.chatRoom.findMany({
+      where: {
+        type: "DIRECT",
+        members: { 
+          some: { userId },
+          every: {
+            user: {
+              role: { in: ["COMMERCIAL", "ORDER_MANAGER"] }
+            }
+          }
+        },
+      },
+      include: { 
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+              }
+            }
+          }
+        }
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // Filtriraj samo sobe gdje je drugi član COMMERCIAL
+    const roomsWithCommercial = directRooms.filter(room => {
+      const otherMember = room.members.find(m => m.userId !== userId);
+      return otherMember?.user.role === "COMMERCIAL";
+    });
+
+    const roomsWithLastMessage = await Promise.all(
+      roomsWithCommercial.map(async (room) => {
+        const lastMessage = await prisma.chatMessage.findFirst({
+          where: { roomId: room.id },
+          include: { author: { select: { name: true } } },
+          orderBy: { createdAt: "desc" },
+        });
+
+        // Generiši ime iz drugog člana (komercijalista)
+        const otherMember = room.members.find((m) => m.userId !== userId);
+        const displayName = otherMember?.user.name ?? "Komercijalista";
+
+        return {
+          ...room,
+          name: displayName,
+          lastMessage: lastMessage
+            ? {
+                content: lastMessage.content,
+                createdAt: lastMessage.createdAt.toISOString(),
+                author: { name: lastMessage.author.name },
+              }
+            : null,
+        };
+      })
+    );
+
+    return NextResponse.json(roomsWithLastMessage);
+  }
+
+  // Za ostale role (COMMERCIAL, MANAGER, ADMIN) - originalna logika
+  // 1) GLOBALNA GRUPNA SOBA – svi komercijalisti + manageri (bez ORDER_MANAGER)
   let globalRoom = await prisma.chatRoom.findFirst({
     where: { type: "GROUP", name: "Italgroup chat" },
     include: { members: true },
@@ -28,7 +94,7 @@ export async function GET(req: NextRequest) {
       include: { members: true },
     });
 
-    // dodaj sve komercijaliste i managere kao članove
+    // dodaj sve komercijaliste i managere kao članove (bez ORDER_MANAGER)
     const users = await prisma.user.findMany({
       where: { role: { in: ["COMMERCIAL", "MANAGER"] } },
       select: { id: true },
@@ -59,7 +125,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // 2) SOBA "MOJI MANAGERI" – za komercijalistu: on + svi manageri
+  // 2) SOBA "MOJI MANAGERI" – za komercijalistu: on + svi manageri (bez ORDER_MANAGER)
   let myManagersRoom = null;
   if (role === "COMMERCIAL") {
     myManagersRoom = await prisma.chatRoom.findFirst({
@@ -189,9 +255,9 @@ export async function POST(req: NextRequest) {
   const userId = user.id as string;
   const role = user.role as "COMMERCIAL" | "MANAGER" | "ORDER_MANAGER" | "ADMIN";
 
-  // Samo manager može kreirati DIRECT room sa komercijalistom
-  if (role !== "MANAGER") {
-    return new NextResponse("Only managers can create rooms", { status: 403 });
+  // Manager i Order Manager mogu kreirati DIRECT room sa komercijalistom
+  if (!["MANAGER", "ORDER_MANAGER"].includes(role)) {
+    return new NextResponse("Only managers and order managers can create rooms", { status: 403 });
   }
 
   try {

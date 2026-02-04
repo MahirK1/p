@@ -196,8 +196,9 @@ export default function DirectorDashboardPage() {
   const [data, setData] = useState<DirectorAnalytics | null>(null);
   const [commercials, setCommercials] = useState<Commercial[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  // Initialize as 0 to avoid hydration mismatch, will be set in useEffect
+  const [selectedMonth, setSelectedMonth] = useState(0);
+  const [selectedYear, setSelectedYear] = useState(0);
   const [selectedCommercialId, setSelectedCommercialId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "commercials" | "products" | "clients" | "advanced">("overview");
   
@@ -231,26 +232,53 @@ export default function DirectorDashboardPage() {
       const url = `/api/analytics/director?year=${selectedYear}&month=${selectedMonth}${
         selectedCommercialId ? `&commercialId=${selectedCommercialId}` : ""
       }`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error("Failed to load analytics");
+      const res = await fetch(url).catch(err => {
+        console.error("Network error:", err);
+        return null;
+      });
+      
+      if (!res) {
+        throw new Error("Network error - nije moguće povezati se sa serverom");
       }
-      const json = await res.json();
+      
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "Greška pri učitavanju analitike");
+        throw new Error(errorText || "Failed to load analytics");
+      }
+      
+      const json = await res.json().catch(err => {
+        console.error("Error parsing JSON:", err);
+        throw new Error("Greška pri parsiranju podataka");
+      });
+      
       setData(json);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading analytics:", error);
-      showToast("Greška pri učitavanju analitike.", "error");
+      showToast(error?.message || "Greška pri učitavanju analitike.", "error");
+      setData(null);
     } finally {
       setLoading(false);
     }
   };
+
+  // Initialize dates on client side only to avoid hydration mismatch
+  useEffect(() => {
+    if (selectedMonth === 0 || selectedYear === 0) {
+      const now = new Date();
+      setSelectedMonth(now.getMonth() + 1);
+      setSelectedYear(now.getFullYear());
+    }
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     loadCommercials();
   }, []);
 
   useEffect(() => {
-    loadData();
+    // Only load data if month and year are initialized
+    if (selectedMonth > 0 && selectedYear > 0) {
+      loadData();
+    }
   }, [selectedMonth, selectedYear, selectedCommercialId]);
 
   const filteredCommercials = useMemo(() => {
