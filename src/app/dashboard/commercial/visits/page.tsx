@@ -44,6 +44,7 @@ type Visit = {
   scheduledAt: string;
   status: "PLANNED" | "DONE" | "CANCELED";
   note?: string | null;
+  managerComment?: string | null;
   managerId?: string | null;
   client: { name: string };
   branches?: Array<{ branch: { id: string; name: string } }>;
@@ -661,6 +662,12 @@ export default function CommercialVisitsPage() {
                           <span className="text-slate-600">{v.note}</span>
                         </div>
                       )}
+                      {v.managerComment && (
+                        <div>
+                          <span className="text-slate-500">Komentar managera: </span>
+                          <span className="line-clamp-2 text-slate-600">{v.managerComment}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -693,6 +700,7 @@ export default function CommercialVisitsPage() {
                     <th className="px-4 py-3 text-left">Klijent</th>
                     <th className="px-4 py-3 text-left">Status</th>
                     <th className="px-4 py-3 text-left">Napomena</th>
+                    <th className="px-4 py-3 text-left">Komentar managera</th>
                     <th className="px-4 py-3 text-right">Akcije</th>
                   </tr>
                 </thead>
@@ -750,6 +758,13 @@ export default function CommercialVisitsPage() {
                           </div>
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[160px]">
+                        {v.managerComment ? (
+                          <span className="line-clamp-2 text-xs">{v.managerComment}</span>
+                        ) : (
+                          "-"
                         )}
                       </td>
                       <td className="px-4 py-3">

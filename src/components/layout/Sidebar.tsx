@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import {
   HomeIcon,
   ClipboardDocumentListIcon,
@@ -91,6 +91,36 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
   const handleLogout = useCallback(async () => {
     await signOut({ callbackUrl: "/login", redirect: true });
   }, []);
+
+  const [chatUnreadTotal, setChatUnreadTotal] = useState(0);
+  const showChatBadge = role === "COMMERCIAL" || role === "MANAGER" || role === "ORDER_MANAGER";
+
+  useEffect(() => {
+    if (!showChatBadge) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/chat/rooms");
+        const rooms = await res.json();
+        const total = (Array.isArray(rooms) ? rooms : []).reduce(
+          (sum: number, r: { unreadCount?: number }) => sum + (r.unreadCount ?? 0),
+          0
+        );
+        setChatUnreadTotal(total);
+      } catch {
+        setChatUnreadTotal(0);
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [showChatBadge]);
+
+  const chatBadge =
+    chatUnreadTotal > 0 ? (
+      <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center text-xs font-bold bg-blue-600 text-white flex-shrink-0">
+        {chatUnreadTotal > 99 ? "99+" : chatUnreadTotal}
+      </span>
+    ) : null;
 
   return (
     <aside className={`flex flex-col h-screen bg-slate-900 text-white transition-all duration-300 ${
@@ -201,8 +231,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 onClick={handleLinkClick}
                 title={collapsed ? "Chat" : undefined}
               >
-                <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                <span className="relative inline-flex">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                  {showChatBadge && chatUnreadTotal > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-bold bg-blue-600 text-white">
+                      {chatUnreadTotal > 99 ? "99+" : chatUnreadTotal}
+                    </span>
+                  )}
+                </span>
                 {!collapsed && <span className="truncate">Chat</span>}
+                {!collapsed && chatBadge}
               </Link>
             </>
           )}
@@ -240,6 +278,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               </Link>
 
               <Link 
+                href="/dashboard/manager/doctor-visits" 
+                className={getLinkClass("/dashboard/manager/doctor-visits")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Posjete doktora" : undefined}
+              >
+                <UsersIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Posjete doktora</span>}
+              </Link>
+
+              <Link 
                 href="/dashboard/manager/plans" 
                 className={getLinkClass("/dashboard/manager/plans")}
                 onClick={handleLinkClick}
@@ -255,8 +303,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 onClick={handleLinkClick}
                 title={collapsed ? "Chat" : undefined}
               >
-                <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                <span className="relative inline-flex">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                  {showChatBadge && chatUnreadTotal > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-bold bg-blue-600 text-white">
+                      {chatUnreadTotal > 99 ? "99+" : chatUnreadTotal}
+                    </span>
+                  )}
+                </span>
                 {!collapsed && <span className="truncate">Chat</span>}
+                {!collapsed && chatBadge}
               </Link>
             </>
           )}
@@ -278,8 +334,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 onClick={handleLinkClick}
                 title={collapsed ? "Chat" : undefined}
               >
-                <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                <span className="relative inline-flex">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 flex-shrink-0" />
+                  {showChatBadge && chatUnreadTotal > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-bold bg-blue-600 text-white">
+                      {chatUnreadTotal > 99 ? "99+" : chatUnreadTotal}
+                    </span>
+                  )}
+                </span>
                 {!collapsed && <span className="truncate">Chat</span>}
+                {!collapsed && chatBadge}
               </Link>
             </>
           )}
@@ -303,6 +367,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <UsersIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Planirane posjete</span>}
+              </Link>
+
+              <Link 
+                href="/dashboard/director/doctor-visits" 
+                className={getLinkClass("/dashboard/director/doctor-visits")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Posjete doktora" : undefined}
+              >
+                <UsersIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Posjete doktora</span>}
               </Link>
             </>
           )}

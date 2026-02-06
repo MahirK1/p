@@ -14,9 +14,17 @@ type Commercial = {
   email: string;
 };
 
+type Room = {
+  id: string;
+  name?: string | null;
+  type: "DIRECT" | "GROUP";
+  otherMemberOnline?: boolean;
+};
+
 export default function OrderManagerChatPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
   const [selectedRoomName, setSelectedRoomName] = useState<string | undefined>();
+  const [selectedRoom, setSelectedRoom] = useState<Room | undefined>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [commercials, setCommercials] = useState<Commercial[]>([]);
   const [loadingCommercials, setLoadingCommercials] = useState(false);
@@ -24,9 +32,10 @@ export default function OrderManagerChatPage() {
   const sidebarRefreshRef = useRef<(() => void) | null>(null);
   const { showToast } = useToast();
 
-  const handleSelectRoom = (roomId: string, roomName?: string) => {
+  const handleSelectRoom = (roomId: string, roomName?: string, room?: Room) => {
     setSelectedRoomId(roomId);
     setSelectedRoomName(roomName);
+    setSelectedRoom(room);
   };
 
   useEffect(() => {
@@ -118,9 +127,12 @@ export default function OrderManagerChatPage() {
             <ChatWindow
               roomId={selectedRoomId}
               roomName={selectedRoomName}
+              otherMemberOnline={selectedRoom?.otherMemberOnline}
+              onRoomOpen={() => (window as any).__chatSidebarRefresh?.()}
               onBack={() => {
                 setSelectedRoomId(undefined);
                 setSelectedRoomName(undefined);
+                setSelectedRoom(undefined);
               }}
             />
           ) : (

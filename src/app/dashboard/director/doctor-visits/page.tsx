@@ -18,13 +18,20 @@ type DoctorVisit = {
   commercial: { id: string; name: string };
 };
 
-export default function DoctorVisitsPage() {
+type Commercial = { id: string; name: string };
+
+export default function DirectorDoctorVisitsPage() {
   const { showToast } = useToast();
   const [visits, setVisits] = useState<DoctorVisit[]>([]);
+  const [commercials, setCommercials] = useState<Commercial[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingVisit, setEditingVisit] = useState<DoctorVisit | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [commentVisit, setCommentVisit] = useState<DoctorVisit | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   const [filterDateFrom, setFilterDateFrom] = useState(() => {
     const d = new Date();
@@ -36,8 +43,10 @@ export default function DoctorVisitsPage() {
     d.setMonth(d.getMonth() + 1);
     return d.toISOString().slice(0, 10);
   });
+  const [filterCommercialId, setFilterCommercialId] = useState("");
 
   const [form, setForm] = useState({
+    commercialId: "",
     firstName: "",
     lastName: "",
     institution: "",
@@ -48,18 +57,29 @@ export default function DoctorVisitsPage() {
     note: "",
   });
 
+  const loadCommercials = async () => {
+    try {
+      const res = await fetch("/api/users?role=COMMERCIAL");
+      if (res.ok) {
+        const data = await res.json();
+        setCommercials(data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     try {
       const from = new Date(filterDateFrom);
       const to = new Date(filterDateTo);
       to.setHours(23, 59, 59, 999);
-      
-      const res = await fetch(
-        `/api/doctor-visits?from=${from.toISOString()}&to=${to.toISOString()}`
-      );
+      let url = `/api/doctor-visits?from=${from.toISOString()}&to=${to.toISOString()}`;
+      if (filterCommercialId) url += `&commercialId=${filterCommercialId}`;
+      const res = await fetch(url);
       const data = await res.json();
-      setVisits(data);
+      setVisits(Array.isArray(data) ? data : []);
     } catch (error) {
       showToast("Greška pri učitavanju posjeta doktora.", "error");
     } finally {
@@ -68,12 +88,17 @@ export default function DoctorVisitsPage() {
   };
 
   useEffect(() => {
+    loadCommercials();
+  }, []);
+
+  useEffect(() => {
     load();
-  }, [filterDateFrom, filterDateTo]);
+  }, [filterDateFrom, filterDateTo, filterCommercialId]);
 
   const openCreateModal = () => {
     setEditingVisit(null);
     setForm({
+      commercialId: filterCommercialId || (commercials[0]?.id ?? ""),
       firstName: "",
       lastName: "",
       institution: "",
@@ -90,6 +115,7 @@ export default function DoctorVisitsPage() {
     setEditingVisit(visit);
     const scheduledDate = new Date(visit.scheduledAt);
     setForm({
+      commercialId: visit.commercial.id,
       firstName: visit.firstName,
       lastName: visit.lastName,
       institution: visit.institution,
@@ -105,14 +131,10 @@ export default function DoctorVisitsPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
     const scheduledAt = new Date(`${form.date}T${form.time}:00`);
 
     try {
       const method = editingVisit ? "PATCH" : "POST";
-      const url = editingVisit
-        ? "/api/doctor-visits"
-        : "/api/doctor-visits";
       const body = editingVisit
         ? {
             id: editingVisit.id,
@@ -125,6 +147,7 @@ export default function DoctorVisitsPage() {
             note: form.note || null,
           }
         : {
+            commercialId: form.commercialId || undefined,
             firstName: form.firstName,
             lastName: form.lastName,
             institution: form.institution,
@@ -134,7 +157,7 @@ export default function DoctorVisitsPage() {
             note: form.note || null,
           };
 
-      const res = await fetch(url, {
+      const res = await fetch("/api/doctor-visits", {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -145,9 +168,7 @@ export default function DoctorVisitsPage() {
         setEditingVisit(null);
         await load();
         showToast(
-          editingVisit
-            ? "Posjeta doktora je ažurirana."
-            : "Posjeta doktora je kreirana.",
+          editingVisit ? "Posjeta doktora je ažurirana." : "Posjeta doktora je kreirana.",
           "success"
         );
       } else {
@@ -162,15 +183,9 @@ export default function DoctorVisitsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Da li ste sigurni da želite obrisati ovu posjetu doktora?")) {
-      return;
-    }
-
+    if (!confirm("Da li ste sigurni da želite obrisati ovu posjetu doktora?")) return;
     try {
-      const res = await fetch(`/api/doctor-visits?id=${id}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`/api/doctor-visits?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         await load();
         showToast("Posjeta doktora je obrisana.", "success");
@@ -182,20 +197,51 @@ export default function DoctorVisitsPage() {
     }
   };
 
+  const openCommentModal = (visit: DoctorVisit) => {
+    setCommentVisit(visit);
+    setCommentText(visit.managerComment ?? "");
+    setCommentModalOpen(true);
+  };
+
+  const saveComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentVisit) return;
+    setCommentSubmitting(true);
+    try {
+      const res = await fetch("/api/doctor-visits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: commentVisit.id, managerComment: commentText.trim() || null }),
+      });
+      if (res.ok) {
+        await load();
+        setCommentModalOpen(false);
+        setCommentVisit(null);
+        setCommentText("");
+        showToast("Komentar je spremljen. Komercijalista će dobiti obavijest.", "success");
+      } else {
+        const err = await res.text();
+        showToast("Greška: " + err, "error");
+      }
+    } finally {
+      setCommentSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Posjete doktora</h1>
           <p className="text-sm text-slate-500">
-            Upravljanje posjetama doktorima.
+            Pregled posjeta doktora koje su imali komercijalisti.
           </p>
         </div>
         <button
           onClick={openCreateModal}
           className="w-full sm:w-auto rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition shadow-sm"
         >
-          + Dodaj posjetu doktora
+          + Dodaj posjetu (za komercijalistu)
         </button>
       </header>
 
@@ -215,6 +261,16 @@ export default function DoctorVisitsPage() {
               onChange={(e) => setFilterDateTo(e.target.value)}
               className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
             />
+            <select
+              value={filterCommercialId}
+              onChange={(e) => setFilterCommercialId(e.target.value)}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none min-w-[180px]"
+            >
+              <option value="">Svi komercijalisti</option>
+              {commercials.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -232,12 +288,13 @@ export default function DoctorVisitsPage() {
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Datum / vrijeme</th>
+                  <th className="px-4 py-3 text-left">Komercijalista</th>
                   <th className="px-4 py-3 text-left">Ime i prezime</th>
                   <th className="px-4 py-3 text-left">Ustanova</th>
                   <th className="px-4 py-3 text-left">Kontakt</th>
                   <th className="px-4 py-3 text-left">Email</th>
                   <th className="px-4 py-3 text-left">Napomena</th>
-                  <th className="px-4 py-3 text-left">Komentar managera</th>
+                  <th className="px-4 py-3 text-left">Komentar komercijalisti</th>
                   <th className="px-4 py-3 text-right">Akcije</th>
                 </tr>
               </thead>
@@ -264,15 +321,14 @@ export default function DoctorVisitsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-800">
+                      {visit.commercial.name}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-800">
                       {visit.firstName} {visit.lastName}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{visit.institution}</td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {visit.contactNumber || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {visit.email || "-"}
-                    </td>
+                    <td className="px-4 py-3 text-slate-600">{visit.contactNumber || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600">{visit.email || "-"}</td>
                     <td className="px-4 py-3 text-slate-600 max-w-xs">
                       {visit.note ? (
                         <div className="text-xs line-clamp-2">{visit.note}</div>
@@ -286,6 +342,13 @@ export default function DoctorVisitsPage() {
                       ) : (
                         "-"
                       )}
+                      <button
+                        type="button"
+                        className="block mt-1 text-xs text-blue-600 hover:underline"
+                        onClick={() => openCommentModal(visit)}
+                      >
+                        {visit.managerComment ? "Uredi komentar" : "Dodaj komentar"}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
@@ -318,15 +381,31 @@ export default function DoctorVisitsPage() {
             setModalOpen(false);
             setEditingVisit(null);
           }}
-          title={editingVisit ? "Uredi posjetu doktora" : "Nova posjeta doktora"}
+          title={editingVisit ? "Uredi posjetu doktora" : "Nova posjeta doktora (za komercijalistu)"}
           size="md"
         >
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            {!editingVisit && (
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Ime *
+                  Komercijalista *
                 </label>
+                <select
+                  value={form.commercialId}
+                  onChange={(e) => setForm({ ...form, commercialId: e.target.value })}
+                  required
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">Odaberi komercijalistu</option>
+                  {commercials.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Ime *</label>
                 <input
                   type="text"
                   value={form.firstName}
@@ -336,9 +415,7 @@ export default function DoctorVisitsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Prezime *
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Prezime *</label>
                 <input
                   type="text"
                   value={form.lastName}
@@ -348,11 +425,8 @@ export default function DoctorVisitsPage() {
                 />
               </div>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                Ustanova *
-              </label>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Ustanova *</label>
               <input
                 type="text"
                 value={form.institution}
@@ -361,12 +435,9 @@ export default function DoctorVisitsPage() {
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Kontakt broj
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Kontakt broj</label>
                 <input
                   type="tel"
                   value={form.contactNumber}
@@ -375,9 +446,7 @@ export default function DoctorVisitsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Email
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Email</label>
                 <input
                   type="email"
                   value={form.email}
@@ -386,12 +455,9 @@ export default function DoctorVisitsPage() {
                 />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Datum posjete *
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Datum posjete *</label>
                 <input
                   type="date"
                   value={form.date}
@@ -401,9 +467,7 @@ export default function DoctorVisitsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Vrijeme *
-                </label>
+                <label className="block text-sm font-medium text-slate-600 mb-2">Vrijeme *</label>
                 <input
                   type="time"
                   value={form.time}
@@ -413,11 +477,8 @@ export default function DoctorVisitsPage() {
                 />
               </div>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                Napomena
-              </label>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Napomena</label>
               <textarea
                 rows={3}
                 value={form.note}
@@ -425,15 +486,11 @@ export default function DoctorVisitsPage() {
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
-
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
               <button
                 type="button"
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                onClick={() => {
-                  setModalOpen(false);
-                  setEditingVisit(null);
-                }}
+                onClick={() => { setModalOpen(false); setEditingVisit(null); }}
               >
                 Odustani
               </button>
@@ -448,7 +505,50 @@ export default function DoctorVisitsPage() {
           </form>
         </Modal>
       )}
+
+      {commentModalOpen && commentVisit && (
+        <Modal
+          isOpen={commentModalOpen}
+          onClose={() => { setCommentModalOpen(false); setCommentVisit(null); setCommentText(""); }}
+          title="Komentar komercijalisti"
+          size="md"
+        >
+          <div className="mb-3 text-sm text-slate-500">
+            {commentVisit.commercial.name} – {commentVisit.firstName} {commentVisit.lastName}, {commentVisit.institution} –{" "}
+            {new Date(commentVisit.scheduledAt).toLocaleString("bs-BA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
+            <br />
+            <span className="text-xs">Komercijalista će dobiti push obavijest kada spremite komentar.</span>
+          </div>
+          <form onSubmit={saveComment} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">Komentar</label>
+              <textarea
+                rows={4}
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                placeholder="Ostavite komentar komercijalisti o ovoj posjeti doktora..."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                onClick={() => { setCommentModalOpen(false); setCommentVisit(null); setCommentText(""); }}
+              >
+                Odustani
+              </button>
+              <button
+                type="submit"
+                disabled={commentSubmitting}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+              >
+                {commentSubmitting ? "Spremam..." : "Spremi komentar"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
-

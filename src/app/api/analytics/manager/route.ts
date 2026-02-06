@@ -569,123 +569,107 @@ export async function GET(req: NextRequest) {
 
   // 6. Apoteke koje nisu posjećene 3+ mjeseca
   const threeMonthsAgo = new Date(year, month - 1 - 3, 1);
-  
-  // Uzmi sve brancheve koji su ikad posjećeni
-  const allVisitsWithBranches = await prisma.visit.findMany({
-    where: {
-      status: "DONE",
-      ...commercialFilter,
+const now = new Date();
+
+// 1. Dohvati sve klijente i njihove poslovnice
+const allClients = await prisma.client.findMany({
+  include: {
+    branches: true, // Dohvaćamo sve poslovnice za svakog klijenta
+  },
+});
+
+// 2. Dohvati sve završene posjete (za mapiranje zadnje posjete)
+const allVisits = await prisma.visit.findMany({
+  where: {
+    status: "DONE",
+    ...commercialFilter,
+  },
+  include: {
+    branches: {
+      include: {
+        branch: true
+      }
     },
-    include: {
-      branches: {
-        include: {
-          branch: {
-            include: {
-              client: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-      },
-      commercial: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-    orderBy: { scheduledAt: "desc" },
-  });
-  
-  // Pronađi posljednju posjetu po branchu
-  const lastVisitByBranch = new Map<string, {
-    branchId: string;
-    branchName: string;
-    clientId: string;
-    clientName: string;
-    lastVisitDate: Date;
-    commercialId: string;
-    commercialName: string;
-  }>();
-  
-  for (const visit of allVisitsWithBranches) {
-    for (const visitBranch of visit.branches) {
-      const branchId = visitBranch.branchId;
-      if (!lastVisitByBranch.has(branchId)) {
-        lastVisitByBranch.set(branchId, {
-          branchId: branchId,
-          branchName: visitBranch.branch.name,
-          clientId: visitBranch.branch.clientId,
-          clientName: visitBranch.branch.client.name,
-          lastVisitDate: visit.scheduledAt,
-          commercialId: visit.commercialId,
-          commercialName: visit.commercial.name,
+    commercial: {
+      select: { id: true, name: true }
+    }
+  },
+  orderBy: { scheduledAt: "desc" },
+});
+
+// 3. Mapiranje zadnje posjete (ključ može biti clientId ili branchId)
+const lastVisitMap = new Map<string, { date: Date; commId: string; commName: string }>();
+
+for (const visit of allVisits) {
+  // Ako posjeta ima poslovnice, mapiraj po branchId
+  if (visit.branches.length > 0) {
+    for (const vb of visit.branches) {
+      if (!lastVisitMap.has(vb.branchId)) {
+        lastVisitMap.set(vb.branchId, {
+          date: visit.scheduledAt,
+          commId: visit.commercialId,
+          commName: visit.commercial.name
         });
-      } else {
-        const existing = lastVisitByBranch.get(branchId)!;
-        if (visit.scheduledAt > existing.lastVisitDate) {
-          existing.lastVisitDate = visit.scheduledAt;
-          existing.commercialId = visit.commercialId;
-          existing.commercialName = visit.commercial.name;
-        }
       }
     }
-  }
-  
-  // Uzmi sve brancheve koji su ikad bili u sistemu
-  const allBranches = await prisma.clientBranch.findMany({
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  });
-  
-  const unvisitedBranches: Array<{
-    branchId: string;
-    branchName: string;
-    clientId: string;
-    clientName: string;
-    lastVisitDate: Date | null;
-    monthsSinceLastVisit: number;
-    commercialId: string | null;
-    commercialName: string | null;
-  }> = [];
-  
-  const nowBranches = new Date();
-  
-  for (const branch of allBranches) {
-    const lastVisitInfo = lastVisitByBranch.get(branch.id);
-    const lastVisitDate = lastVisitInfo?.lastVisitDate || null;
-    
-    // Branch nije posjećen ili nije posjećen 3+ mjeseca
-    if (!lastVisitDate || lastVisitDate < threeMonthsAgo) {
-      const monthsSince = lastVisitDate
-        ? Math.floor((nowBranches.getTime() - lastVisitDate.getTime()) / (1000 * 60 * 60 * 24 * 30))
-        : 999;
-      unvisitedBranches.push({
-        branchId: branch.id,
-        branchName: branch.name,
-        clientId: branch.clientId,
-        clientName: branch.client.name,
-        lastVisitDate: lastVisitDate,
-        monthsSinceLastVisit: monthsSince,
-        commercialId: lastVisitInfo?.commercialId || null,
-        commercialName: lastVisitInfo?.commercialName || null,
+  } else {
+    // Ako posjeta NEMA poslovnice, vežemo je direktno za klijenta
+    if (!lastVisitMap.has(visit.clientId)) {
+      lastVisitMap.set(visit.clientId, {
+        date: visit.scheduledAt,
+        commId: visit.commercialId,
+        commName: visit.commercial.name
       });
     }
   }
-  
-  // Sortiraj po mjesecima bez posjete (najduže prvo) i uzmi top 100
-  unvisitedBranches.sort((a, b) => b.monthsSinceLastVisit - a.monthsSinceLastVisit);
-  const topUnvisitedBranches = unvisitedBranches.slice(0, 100);
+}
+
+// 4. Kreiranje finalne liste (Klijenti + Poslovnice)
+const unvisitedEntities: any[] = [];
+
+for (const client of allClients) {
+  // Ako klijent NEMA poslovnice, tretiraj njega kao lokaciju
+  if (client.branches.length === 0) {
+    const lastVisit = lastVisitMap.get(client.id);
+    const lastDate = lastVisit?.date || null;
+
+    if (!lastDate || lastDate < threeMonthsAgo) {
+      unvisitedEntities.push(formatEntry(client, null, lastVisit));
+    }
+  } else {
+    // Ako klijent IMA poslovnice, prođi kroz svaku
+    for (const branch of client.branches) {
+      const lastVisit = lastVisitMap.get(branch.id);
+      const lastDate = lastVisit?.date || null;
+
+      if (!lastDate || lastDate < threeMonthsAgo) {
+        unvisitedEntities.push(formatEntry(client, branch, lastVisit));
+      }
+    }
+  }
+}
+
+// Pomoćna funkcija za formatiranje unosa
+function formatEntry(client: any, branch: any | null, lastVisit: any) {
+  const lastDate = lastVisit?.date || null;
+  const months = lastDate 
+    ? Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) 
+    : 999;
+
+  return {
+    id: branch ? branch.id : client.id,
+    displayName: branch ? `${client.name} - ${branch.name}` : `${client.name} (Sjedište/Klijent)`,
+    clientName: client.name,
+    branchName: branch ? branch.name : "Nema poslovnice",
+    lastVisitDate: lastDate,
+    monthsSinceLastVisit: months,
+    commercialName: lastVisit?.commName || "Nema podataka"
+  };
+}
+
+// 5. Sortiranje i top 100
+unvisitedEntities.sort((a, b) => b.monthsSinceLastVisit - a.monthsSinceLastVisit);
+const topResults = unvisitedEntities.slice(0, 100);
 
   // ========== ANALITIKE SREDNJEG PRIORITETA ==========
   
@@ -1057,7 +1041,7 @@ export async function GET(req: NextRequest) {
     churnedClients: topChurnedClients,
     cancellationReasons: cancellationReasons,
     visitsWithoutOrders: visitsWithoutOrders,
-    unvisitedBranches: topUnvisitedBranches,
+    unvisitedBranches: topResults,
     // ANALITIKE SREDNJEG PRIORITETA
     customerLifetimeValue: topCLVClients,
     productsTrending: {

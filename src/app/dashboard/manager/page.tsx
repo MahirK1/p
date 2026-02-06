@@ -1153,8 +1153,8 @@ export default function ManagerDashboardPage() {
             </div>
             <div className="p-6">
               <div className="space-y-3">
-                {data.salesByBrand.slice(0, 10).map((b) => (
-                  <div key={b.brand}>
+                {data.salesByBrand.slice(0, 10).map((b, idx) => (
+                  <div key={b.brand != null && b.brand !== "" ? b.brand : `brand-${idx}`}>
                     <div className="mb-1 flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-800">{b.brand}</span>
                       <span className="font-semibold text-slate-900">
@@ -1403,7 +1403,7 @@ export default function ManagerDashboardPage() {
               </h2>
               <div className="space-y-2">
                 {data.cancellationReasons.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
+                  <div key={item.reason ? `reason-${item.reason}-${idx}` : `reason-${idx}`} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
                     <span className="text-sm text-slate-700">{item.reason}</span>
                     <span className="text-sm font-semibold text-red-600">{item.count}x</span>
                   </div>
@@ -1907,7 +1907,7 @@ export default function ManagerDashboardPage() {
                     conversion: 0,
                   },
                 ].map((step, idx) => (
-                  <div key={idx}>
+                  <div key={step.label}>
                     <div className="mb-1 flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-800">{step.label}</span>
                       <div className="flex items-center gap-3">
@@ -1944,9 +1944,9 @@ export default function ManagerDashboardPage() {
                   <div key={com.commercialId} className="border-b border-slate-100 pb-4 last:border-0">
                     <div className="mb-2 font-medium text-slate-800">{com.commercial}</div>
                     <div className="flex flex-wrap gap-1">
-                      {com.activityByDate.slice(0, 30).map((day) => (
+                      {com.activityByDate.slice(0, 30).map((day, dayIdx) => (
                         <div
-                          key={day.date}
+                          key={`${com.commercialId}-${day.date}-${dayIdx}`}
                           className={`h-4 w-4 rounded ${
                             day.totalActivity === 0
                               ? "bg-slate-100"

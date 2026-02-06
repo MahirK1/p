@@ -6,13 +6,22 @@ import { ChatWindow } from "@/components/chat/ChatWindow";
 import { PushNotificationButton } from "@/components/ui/PushNotificationButton";
 import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
 
+type Room = {
+  id: string;
+  name?: string | null;
+  type: "DIRECT" | "GROUP";
+  otherMemberOnline?: boolean;
+};
+
 export default function CommercialChatPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
   const [selectedRoomName, setSelectedRoomName] = useState<string | undefined>();
+  const [selectedRoom, setSelectedRoom] = useState<Room | undefined>();
 
-  const handleSelectRoom = (roomId: string, roomName?: string) => {
+  const handleSelectRoom = (roomId: string, roomName?: string, room?: Room) => {
     setSelectedRoomId(roomId);
     setSelectedRoomName(roomName);
+    setSelectedRoom(room);
   };
 
   return (
@@ -53,9 +62,12 @@ export default function CommercialChatPage() {
             <ChatWindow
               roomId={selectedRoomId}
               roomName={selectedRoomName}
+              otherMemberOnline={selectedRoom?.otherMemberOnline}
+              onRoomOpen={() => (window as any).__chatSidebarRefresh?.()}
               onBack={() => {
                 setSelectedRoomId(undefined);
                 setSelectedRoomName(undefined);
+                setSelectedRoom(undefined);
               }}
             />
           </div>
@@ -85,9 +97,12 @@ export default function CommercialChatPage() {
             <ChatWindow
               roomId={selectedRoomId}
               roomName={selectedRoomName}
+              otherMemberOnline={selectedRoom?.otherMemberOnline}
+              onRoomOpen={() => (window as any).__chatSidebarRefresh?.()}
               onBack={() => {
                 setSelectedRoomId(undefined);
                 setSelectedRoomName(undefined);
+                setSelectedRoom(undefined);
               }}
             />
           </div>

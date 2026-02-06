@@ -2,6 +2,7 @@ import type { NextApiRequest } from "next";
 import { Server as IOServer } from "socket.io";
 import { prisma } from "@/lib/prisma";
 import { sendPushNotificationToMultipleUsers } from "@/lib/push-notifications";
+import { addOnlineUser, removeOnlineUser } from "@/lib/chat-presence";
 
 // Define NextApiResponseServerIO type inline to avoid import problems
 import type { Server as HTTPServer } from "http";
@@ -40,7 +41,12 @@ export default async function handler(
         return;
       }
 
+      addOnlineUser(userId);
       socket.join(userId);
+
+      socket.on("disconnect", () => {
+        removeOnlineUser(userId);
+      });
 
       socket.on("join-room", (roomId: string) => {
         socket.join(roomId);

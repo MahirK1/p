@@ -147,19 +147,20 @@ model OrderItem {
 }
 
 model Visit {
-  id           String      @id @default(cuid())
-  clientId     String
-  client       Client      @relation(fields: [clientId], references: [id])
-  commercialId String
-  commercial   User        @relation("CommercialVisits", fields: [commercialId], references: [id])
-  managerId    String?
-  manager      User?       @relation("ManagerVisits", fields: [managerId], references: [id])
-  scheduledAt  DateTime
-  status       VisitStatus @default(PLANNED)
-  note         String?
-  images       Json?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id              String      @id @default(cuid())
+  clientId        String
+  client          Client      @relation(fields: [clientId], references: [id])
+  commercialId     String
+  commercial      User        @relation("CommercialVisits", fields: [commercialId], references: [id])
+  managerId       String?
+  manager         User?       @relation("ManagerVisits", fields: [managerId], references: [id])
+  scheduledAt     DateTime
+  status          VisitStatus @default(PLANNED)
+  note            String?
+  managerComment  String?     // Komentar managera komercijalisti
+  images          Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   orders       Order[]
   branches     VisitBranch[]
@@ -282,18 +283,19 @@ model AuditLog {
 }
 
 model DoctorVisit {
-  id          String   @id @default(cuid())
-  commercialId String
-  commercial   User     @relation(fields: [commercialId], references: [id])
-  firstName   String
-  lastName    String
-  institution String
-  contactNumber String?
-  email       String?
-  scheduledAt DateTime
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  commercialId   String
+  commercial     User      @relation(fields: [commercialId], references: [id])
+  firstName      String
+  lastName       String
+  institution    String
+  contactNumber  String?
+  email          String?
+  scheduledAt    DateTime
+  note           String?
+  managerComment String?   // Komentar managera komercijalisti
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@map("doctor_visits")
 }

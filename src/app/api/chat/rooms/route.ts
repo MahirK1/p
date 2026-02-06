@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import { isUserOnline } from "@/lib/chat-presence";
+
+function isMessageReadByUser(readBy: unknown, userId: string): boolean {
+  if (readBy == null) return false;
+  const arr = Array.isArray(readBy) ? readBy : [];
+  return arr.includes(userId);
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -56,9 +63,14 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: "desc" },
         });
 
-        // Generiši ime iz drugog člana (komercijalista)
         const otherMember = room.members.find((m) => m.userId !== userId);
         const displayName = otherMember?.user.name ?? "Komercijalista";
+
+        const unreadInRoom = await prisma.chatMessage.findMany({
+          where: { roomId: room.id, authorId: { not: userId } },
+          select: { readBy: true },
+        });
+        const unreadCount = unreadInRoom.filter((m) => !isMessageReadByUser(m.readBy, userId)).length;
 
         return {
           ...room,
@@ -70,6 +82,8 @@ export async function GET(req: NextRequest) {
                 author: { name: lastMessage.author.name },
               }
             : null,
+          unreadCount,
+          otherMemberOnline: otherMember ? isUserOnline(otherMember.userId) : false,
         };
       })
     );
@@ -214,21 +228,29 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       });
 
-      // Za DIRECT room-ove bez imena, generiši ime iz članova
       let displayName = room.name;
+      let otherMember: { userId: string } | null = null;
       if (!displayName && room.type === "DIRECT") {
-        const otherMember = room.members.find((m) => m.userId !== userId);
-        if (otherMember) {
-          // Učitaj podatke o korisniku
+        const om = room.members.find((m) => m.userId !== userId);
+        if (om) {
+          otherMember = { userId: om.userId };
           const otherUser = await prisma.user.findUnique({
-            where: { id: otherMember.userId },
+            where: { id: om.userId },
             select: { name: true },
           });
           displayName = otherUser?.name ?? "Korisnik";
         } else {
           displayName = "1-na-1";
         }
+      } else if (room.type === "DIRECT") {
+        otherMember = room.members.find((m) => m.userId !== userId) ?? null;
       }
+
+      const unreadInRoom = await prisma.chatMessage.findMany({
+        where: { roomId: room.id, authorId: { not: userId } },
+        select: { readBy: true },
+      });
+      const unreadCount = unreadInRoom.filter((m) => !isMessageReadByUser(m.readBy, userId)).length;
 
       return {
         ...room,
@@ -240,6 +262,8 @@ export async function GET(req: NextRequest) {
               author: { name: lastMessage.author.name },
             }
           : null,
+        unreadCount,
+        otherMemberOnline: otherMember ? isUserOnline(otherMember.userId) : false,
       };
     })
   );

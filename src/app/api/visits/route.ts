@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
@@ -279,11 +280,13 @@ export async function PATCH(req: NextRequest) {
     status,
     note,
     scheduledAt,
+    managerComment,
   }: { 
     id: string; 
     status?: "PLANNED" | "DONE" | "CANCELED"; 
     note?: string;
     scheduledAt?: string;
+    managerComment?: string | null;
   } = body;
 
   if (!id) {
@@ -298,13 +301,16 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Posjeta ne postoji" }, { status: 404 });
   }
 
-  // Komercijalista može mijenjati samo svoje posjete
-  if (
-    user.role === "COMMERCIAL" &&
-    existing.commercialId !== user.id
-  ) {
+  // Komercijalista može mijenjati samo svoje posjete (ne može mijenjati managerComment)
+  if (user.role === "COMMERCIAL" && existing.commercialId !== user.id) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+  // Samo manager/director/admin mogu postaviti ili mijenjati managerComment
+  const canSetManagerComment = ["MANAGER", "ADMIN", "DIRECTOR"].includes(user.role);
+  const existingWithComment = existing as typeof existing & { managerComment?: string | null };
+  const effectiveManagerComment = canSetManagerComment
+    ? (managerComment !== undefined ? managerComment : existingWithComment.managerComment ?? null)
+    : existingWithComment.managerComment;
 
   // Ako se otkazuje posjeta, razlog je obavezan
   if (status === "CANCELED" && (!note || !note.trim())) {
@@ -336,7 +342,8 @@ export async function PATCH(req: NextRequest) {
       status: status ?? existing.status,
       note: note ?? existing.note,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : existing.scheduledAt,
-    },
+      managerComment: effectiveManagerComment,
+    } as Prisma.VisitUpdateInput,
     include: { 
       client: true, 
       branches: {
@@ -348,6 +355,19 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
+  // Ako je manager/director/admin postavio komentar, pošalji push komercijalisti
+  if (canSetManagerComment && effectiveManagerComment && effectiveManagerComment.trim() && visit.commercialId) {
+    const commercialId = visit.commercialId;
+    const clientName = visit.client?.name ?? "Klijent";
+    const dateStr = visit.scheduledAt ? new Date(visit.scheduledAt).toLocaleDateString("bs-BA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    await sendPushNotificationToUser(
+      commercialId,
+      "Komentar na posjetu",
+      `Manager vam je ostavio komentar na posjetu: ${clientName} (${dateStr}).`,
+      { url: "/dashboard/commercial/visits" }
+    );
+  }
+
   await logAudit(req, user, {
     action: "UPDATE_VISIT",
     entityType: "Visit",
@@ -356,6 +376,7 @@ export async function PATCH(req: NextRequest) {
       status: visit.status,
       note: visit.note,
       scheduledAt: visit.scheduledAt,
+      managerComment: (visit as any).managerComment != null,
     },
   });
 

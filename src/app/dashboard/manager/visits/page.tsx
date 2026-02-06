@@ -23,6 +23,7 @@ type Visit = {
   scheduledAt: string;
   status: "PLANNED" | "DONE" | "CANCELED";
   note?: string | null;
+  managerComment?: string | null;
   client: { id: string; name: string };
   branches?: Array<{ branch: { id: string; name: string } }>;
   commercial: { id: string; name: string };
@@ -80,6 +81,10 @@ export default function ManagerVisitsPage() {
   const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<Visit | null>(null);
   const [cancellationSubmitting, setCancellationSubmitting] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [commentVisit, setCommentVisit] = useState<Visit | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -327,6 +332,37 @@ export default function ManagerVisitsPage() {
       await load();
     } else {
       showToast("Ne mogu obrisati posjetu.", "error");
+    }
+  };
+
+  const openCommentModal = (v: Visit) => {
+    setCommentVisit(v);
+    setCommentText(v.managerComment ?? "");
+    setCommentModalOpen(true);
+  };
+
+  const saveComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentVisit) return;
+    setCommentSubmitting(true);
+    try {
+      const res = await fetch("/api/visits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: commentVisit.id, managerComment: commentText.trim() || null }),
+      });
+      if (res.ok) {
+        await load();
+        setCommentModalOpen(false);
+        setCommentVisit(null);
+        setCommentText("");
+        showToast("Komentar je spremljen. Komercijalista će dobiti obavijest.", "success");
+      } else {
+        const err = await res.text();
+        showToast("Greška: " + err, "error");
+      }
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -700,6 +736,7 @@ export default function ManagerVisitsPage() {
                     <th className="px-4 py-3 text-left">Komercijalista</th>
                     <th className="px-4 py-3 text-left">Status</th>
                     <th className="px-4 py-3 text-left">Napomena</th>
+                    <th className="px-4 py-3 text-left">Komentar komercijalisti</th>
                     <th className="px-4 py-3 text-right">Akcije</th>
                   </tr>
                 </thead>
@@ -745,6 +782,20 @@ export default function ManagerVisitsPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-500">
                         {v.note || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[160px]">
+                        {v.managerComment ? (
+                          <span className="line-clamp-2 text-xs">{v.managerComment}</span>
+                        ) : (
+                          "-"
+                        )}
+                        <button
+                          type="button"
+                          className="block mt-1 text-xs text-blue-600 hover:underline"
+                          onClick={() => openCommentModal(v)}
+                        >
+                          {v.managerComment ? "Uredi komentar" : "Dodaj komentar"}
+                        </button>
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
                         {v.status !== "CANCELED" && v.status !== "DONE" && (
@@ -828,8 +879,21 @@ export default function ManagerVisitsPage() {
                         {v.note}
                       </div>
                     )}
+                    {v.managerComment && (
+                      <div>
+                        <span className="text-slate-500">Komentar: </span>
+                        <span className="line-clamp-2">{v.managerComment}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() => openCommentModal(v)}
+                    >
+                      {v.managerComment ? "Uredi komentar" : "Dodaj komentar"}
+                    </button>
                     {v.status !== "CANCELED" && v.status !== "DONE" && (
                       <button
                         className="text-xs text-emerald-600 hover:underline"
@@ -870,6 +934,65 @@ export default function ManagerVisitsPage() {
           />
         )}
       </div>
+
+      {/* Modal za komentar komercijalisti */}
+      {commentModalOpen && commentVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border">
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Komentar komercijalisti</h2>
+                  <p className="text-xs text-slate-500">
+                    {commentVisit.client.name} - {commentVisit.commercial.name} -{" "}
+                    {new Date(commentVisit.scheduledAt).toLocaleString("bs-BA", {
+                      day: "2-digit", month: "2-digit", year: "numeric",
+                      hour: "2-digit", minute: "2-digit", hour12: false,
+                    })}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Komercijalista će dobiti push obavijest kada spremite komentar.
+                  </p>
+                </div>
+                <button
+                  className="text-slate-400 hover:text-slate-600"
+                  onClick={() => { setCommentModalOpen(false); setCommentVisit(null); setCommentText(""); }}
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={saveComment} className="px-6 py-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">Komentar</label>
+                  <textarea
+                    rows={4}
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    placeholder="Ostavite komentar komercijalisti o ovoj posjeti..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                    onClick={() => { setCommentModalOpen(false); setCommentVisit(null); setCommentText(""); }}
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={commentSubmitting}
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+                  >
+                    {commentSubmitting ? "Spremam..." : "Spremi komentar"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal za otkazivanje posjete */}
       {cancellationModalOpen && selectedVisitForCancel &&

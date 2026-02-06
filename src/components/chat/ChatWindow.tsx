@@ -21,9 +21,11 @@ type ChatWindowProps = {
   roomId: string;
   roomName?: string;
   onBack?: () => void;
+  otherMemberOnline?: boolean;
+  onRoomOpen?: () => void;
 };
 
-export function ChatWindow({ roomId, roomName, onBack }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, onBack, otherMemberOnline, onRoomOpen }: ChatWindowProps) {
   const { data: session } = useSession();
   const meId = (session?.user as any)?.id as string | undefined;
 
@@ -80,7 +82,7 @@ export function ChatWindow({ roomId, roomName, onBack }: ChatWindowProps) {
     };
   }, [roomId, session, meId, roomName]);
 
-  // Učitaj postojeće poruke
+  // Učitaj postojeće poruke i označi kao pročitano
   useEffect(() => {
     async function load() {
       if (!roomId) return;
@@ -92,9 +94,19 @@ export function ChatWindow({ roomId, roomName, onBack }: ChatWindowProps) {
         setLastSeenMessageId(data[data.length - 1].id);
       }
       setLoading(false);
+      try {
+        await fetch("/api/chat/messages/read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roomId }),
+        });
+        onRoomOpen?.();
+      } catch {
+        onRoomOpen?.();
+      }
     }
     load();
-  }, [roomId]);
+  }, [roomId, onRoomOpen]);
 
   // Auto scroll na dno
   useEffect(() => {
@@ -193,8 +205,21 @@ export function ChatWindow({ roomId, roomName, onBack }: ChatWindowProps) {
               {roomName ?? "Chat"}
             </h2>
             <p className="text-xs md:text-sm text-slate-500 flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              Aktivan
+              {typeof otherMemberOnline === "boolean" ? (
+                <>
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      otherMemberOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+                    }`}
+                  />
+                  {otherMemberOnline ? "Online" : "Offline"}
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 bg-slate-300 rounded-full flex-shrink-0" />
+                  Chat
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -245,11 +270,11 @@ export function ChatWindow({ roomId, roomName, onBack }: ChatWindowProps) {
                 >
                   {/* Avatar */}
                   {showAvatar && !isMe && (
-                    <div className="flex-shrink-0 w-9 h-9 md:w-10 md:h-10 bg-gradient-to-br from-slate-400 to-slate-500 rounded-2xl flex items-center justify-center text-white text-xs font-bold shadow-md">
+                    <div className="flex-shrink-0 w-[30px] h-10 p-2.5 bg-gradient-to-br from-slate-400 to-slate-500 rounded-2xl flex items-center justify-center text-white text-xs font-bold shadow-md">
                       {getInitials(m.author.name)}
                     </div>
                   )}
-                  {showAvatar && isMe && <div className="w-9 md:w-10" />}
+                  {showAvatar && isMe && <div className="w-[30px]" />}
 
                   {/* Message bubble */}
                   <div

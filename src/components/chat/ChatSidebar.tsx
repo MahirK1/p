@@ -15,6 +15,8 @@ type Room = {
     createdAt: string;
     author: { name: string | null };
   } | null;
+  unreadCount?: number;
+  otherMemberOnline?: boolean;
 };
 
 export function ChatSidebar({
@@ -26,7 +28,7 @@ export function ChatSidebar({
   onCreateClick,
 }: {
   selectedRoomId?: string;
-  onSelect: (roomId: string, roomName?: string) => void;
+  onSelect: (roomId: string, roomName?: string, room?: Room) => void;
   onRefresh?: () => void;
   hideHeader?: boolean;
   showCreateButton?: boolean;
@@ -50,16 +52,16 @@ export function ChatSidebar({
     return () => clearInterval(interval);
   }, []);
 
+  // Uvijek ista veličina dependency arraya ([onRefresh]) da React ne upozorava
   useEffect(() => {
-    if (onRefresh) {
-      (window as any).__chatSidebarRefresh = loadRooms;
-    }
+    (window as any).__chatSidebarRefresh = loadRooms;
   }, [onRefresh]);
 
   const handleSelect = (room: Room) => {
     onSelect(
       room.id,
-      room.name ?? (room.type === "GROUP" ? "Grupni chat" : "1-na-1")
+      room.name ?? (room.type === "GROUP" ? "Grupni chat" : "1-na-1"),
+      room
     );
   };
 
@@ -192,20 +194,45 @@ export function ChatSidebar({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <h3
-                          className={`text-sm md:text-base font-semibold truncate ${
-                            isSelected ? "text-white" : "text-slate-900"
-                          }`}
-                        >
-                          {roomName}
-                        </h3>
-                        {room.lastMessage && (
-                          <span className={`text-xs flex-shrink-0 ${
-                            isSelected ? "text-white/80" : "text-slate-400"
-                          }`}>
-                            {formatTime(room.lastMessage.createdAt)}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <h3
+                            className={`text-sm md:text-base font-semibold truncate ${
+                              isSelected ? "text-white" : "text-slate-900"
+                            }`}
+                          >
+                            {roomName}
+                          </h3>
+                          {room.type === "DIRECT" && (
+                            <span
+                              className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                room.otherMemberOnline
+                                  ? "bg-emerald-500"
+                                  : "bg-slate-300"
+                              }`}
+                              title={room.otherMemberOnline ? "Online" : "Offline"}
+                            />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {(room.unreadCount ?? 0) > 0 && (
+                            <span
+                              className={`min-w-[1.25rem] h-5 px-1.5 rounded-full flex items-center justify-center text-xs font-bold ${
+                                isSelected
+                                  ? "bg-white/20 text-white"
+                                  : "bg-blue-600 text-white"
+                              }`}
+                            >
+                              {room.unreadCount! > 99 ? "99+" : room.unreadCount}
+                            </span>
+                          )}
+                          {room.lastMessage && (
+                            <span className={`text-xs ${
+                              isSelected ? "text-white/80" : "text-slate-400"
+                            }`}>
+                              {formatTime(room.lastMessage.createdAt)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {room.lastMessage ? (
                         <p className={`text-xs md:text-sm line-clamp-2 break-words ${
