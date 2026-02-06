@@ -32,6 +32,7 @@ export default function DirectorDoctorVisitsPage() {
   const [commentVisit, setCommentVisit] = useState<DoctorVisit | null>(null);
   const [commentText, setCommentText] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [detailModalVisit, setDetailModalVisit] = useState<DoctorVisit | null>(null);
 
   const [filterDateFrom, setFilterDateFrom] = useState(() => {
     const d = new Date();
@@ -302,7 +303,11 @@ export default function DirectorDoctorVisitsPage() {
                 {visits.map((visit) => (
                   <tr
                     key={visit.id}
-                    className="border-t border-slate-100 hover:bg-slate-50 transition"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setDetailModalVisit(visit)}
+                    onKeyDown={(e) => e.key === "Enter" && setDetailModalVisit(visit)}
+                    className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
                   >
                     <td className="px-4 py-3">
                       <div className="font-medium">
@@ -345,12 +350,12 @@ export default function DirectorDoctorVisitsPage() {
                       <button
                         type="button"
                         className="block mt-1 text-xs text-blue-600 hover:underline"
-                        onClick={() => openCommentModal(visit)}
+                        onClick={(e) => { e.stopPropagation(); openCommentModal(visit); }}
                       >
                         {visit.managerComment ? "Uredi komentar" : "Dodaj komentar"}
                       </button>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditModal(visit)}
@@ -503,6 +508,84 @@ export default function DirectorDoctorVisitsPage() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Modal s detaljima posjete doktora (informacije koje je unio komercijalista) */}
+      {detailModalVisit && (
+        <Modal
+          isOpen={!!detailModalVisit}
+          onClose={() => setDetailModalVisit(null)}
+          title="Detalji posjete doktora"
+          size="md"
+        >
+          <div className="space-y-4 text-sm">
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Datum i vrijeme</span>
+              <p className="text-slate-800">
+                {new Date(detailModalVisit.scheduledAt).toLocaleDateString("bs-BA", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })}{" "}
+                u {new Date(detailModalVisit.scheduledAt).toLocaleTimeString("bs-BA", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Komercijalista</span>
+              <p className="text-slate-800 font-medium">{detailModalVisit.commercial.name}</p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Ime i prezime (doktor)</span>
+              <p className="text-slate-800">{detailModalVisit.firstName} {detailModalVisit.lastName}</p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Ustanova</span>
+              <p className="text-slate-800">{detailModalVisit.institution}</p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Kontakt broj</span>
+              <p className="text-slate-800">{detailModalVisit.contactNumber || "—"}</p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Email</span>
+              <p className="text-slate-800">{detailModalVisit.email || "—"}</p>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-xs font-medium mb-0.5">Napomena (unio komercijalista)</span>
+              <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.note || "—"}</p>
+            </div>
+            {detailModalVisit.managerComment && (
+              <div>
+                <span className="text-slate-500 block text-xs font-medium mb-0.5">Komentar komercijalisti</span>
+                <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.managerComment}</p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-4 border-t border-slate-200 mt-4">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+              onClick={() => setDetailModalVisit(null)}
+            >
+              Zatvori
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+              onClick={() => {
+                setDetailModalVisit(null);
+                openCommentModal(detailModalVisit);
+              }}
+            >
+              {detailModalVisit.managerComment ? "Uredi komentar" : "Dodaj komentar"}
+            </button>
+          </div>
         </Modal>
       )}
 

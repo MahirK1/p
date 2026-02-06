@@ -85,6 +85,7 @@ export default function ManagerVisitsPage() {
   const [commentVisit, setCommentVisit] = useState<Visit | null>(null);
   const [commentText, setCommentText] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [detailModalVisit, setDetailModalVisit] = useState<Visit | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -744,7 +745,11 @@ export default function ManagerVisitsPage() {
                   {filteredVisits.map((v) => (
                     <tr
                       key={v.id}
-                      className="border-t border-slate-100 hover:bg-slate-50 transition"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setDetailModalVisit(v)}
+                      onKeyDown={(e) => e.key === "Enter" && setDetailModalVisit(v)}
+                      className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
                     >
                       <td className="px-4 py-3">
                         <div className="font-medium">
@@ -792,12 +797,12 @@ export default function ManagerVisitsPage() {
                         <button
                           type="button"
                           className="block mt-1 text-xs text-blue-600 hover:underline"
-                          onClick={() => openCommentModal(v)}
+                          onClick={(e) => { e.stopPropagation(); openCommentModal(v); }}
                         >
                           {v.managerComment ? "Uredi komentar" : "Dodaj komentar"}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-right space-x-2">
+                      <td className="px-4 py-3 text-right space-x-2" onClick={(e) => e.stopPropagation()}>
                         {v.status !== "CANCELED" && v.status !== "DONE" && (
                           <button
                             className="text-xs text-emerald-600 hover:underline"
@@ -832,7 +837,11 @@ export default function ManagerVisitsPage() {
               {filteredVisits.map((v) => (
                 <div
                   key={v.id}
-                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setDetailModalVisit(v)}
+                  onKeyDown={(e) => e.key === "Enter" && setDetailModalVisit(v)}
+                  className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:border-slate-300 transition"
                 >
                     <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -886,7 +895,7 @@ export default function ManagerVisitsPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       className="text-xs text-blue-600 hover:underline"
@@ -934,6 +943,96 @@ export default function ManagerVisitsPage() {
           />
         )}
       </div>
+
+      {/* Modal s detaljima posjete (informacije koje je unio komercijalista) */}
+      {detailModalVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div
+              className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-slate-900">Detalji posjete</h2>
+                <button
+                  type="button"
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                  onClick={() => setDetailModalVisit(null)}
+                  aria-label="Zatvori"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="px-6 py-4 overflow-y-auto space-y-4 text-sm">
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Datum i vrijeme</span>
+                  <p className="text-slate-800">
+                    {new Date(detailModalVisit.scheduledAt).toLocaleDateString("bs-BA", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}{" "}
+                    u {new Date(detailModalVisit.scheduledAt).toLocaleTimeString("bs-BA", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Klijent</span>
+                  <p className="text-slate-800 font-medium">{detailModalVisit.client.name}</p>
+                  {detailModalVisit.branches && detailModalVisit.branches.length > 0 && (
+                    <p className="text-slate-600 mt-1">
+                      Podružnice: {detailModalVisit.branches.map((vb) => vb.branch.name).join(", ")}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Komercijalista</span>
+                  <p className="text-slate-800">{detailModalVisit.commercial.name}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Status</span>
+                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusColor(detailModalVisit.status)}`}>
+                    {statusLabel(detailModalVisit.status)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Napomena (unio komercijalista)</span>
+                  <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.note || "—"}</p>
+                </div>
+                {detailModalVisit.managerComment && (
+                  <div>
+                    <span className="text-slate-500 block text-xs font-medium mb-0.5">Komentar komercijalisti</span>
+                    <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.managerComment}</p>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-slate-100 px-6 py-4 flex-shrink-0 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                  onClick={() => setDetailModalVisit(null)}
+                >
+                  Zatvori
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+                  onClick={() => {
+                    setDetailModalVisit(null);
+                    openCommentModal(detailModalVisit);
+                  }}
+                >
+                  {detailModalVisit.managerComment ? "Uredi komentar" : "Dodaj komentar"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal za komentar komercijalisti */}
       {commentModalOpen && commentVisit &&
