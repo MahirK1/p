@@ -80,7 +80,7 @@ export default function ManagerDoctorVisitsPage() {
       if (filterCommercialId) url += `&commercialId=${filterCommercialId}`;
       const res = await fetch(url);
       const data = await res.json();
-      setVisits(Array.isArray(data) ? data : []);
+      setVisits(data.doctorVisits ?? (Array.isArray(data) ? data : []));
     } catch (error) {
       showToast("Greška pri učitavanju posjeta doktora.", "error");
     } finally {

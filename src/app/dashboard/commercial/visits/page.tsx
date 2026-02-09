@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Pagination } from "@/components/ui/Pagination";
 
 // Helper funkcija za sigurno formatiranje datuma (iOS Safari kompatibilnost)
 const safeFormatDate = (date: Date | string | null | undefined, options?: Intl.DateTimeFormatOptions): string => {
@@ -110,6 +111,12 @@ export default function CommercialVisitsPage() {
     }
   });
 
+  // Paginacija
+  const itemsPerPage = 20;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalVisits, setTotalVisits] = useState(0);
+
   const [form, setForm] = useState({
     clientId: "",
     branchIds: [] as string[],
@@ -183,7 +190,7 @@ export default function CommercialVisitsPage() {
         to.setHours(23, 59, 59, 999);
       }
       
-      let url = `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}`;
+      let url = `/api/visits?from=${from.toISOString()}&to=${to.toISOString()}&page=${currentPage}&limit=${itemsPerPage}`;
       if (filterStatus) {
         url += `&status=${filterStatus}`;
       }
@@ -203,6 +210,14 @@ export default function CommercialVisitsPage() {
         try {
           const visitsData = await visitsRes.json();
           setVisits(visitsData.visits || (Array.isArray(visitsData) ? visitsData : []));
+          if (visitsData.pagination) {
+            setTotalPages(visitsData.pagination.totalPages ?? 1);
+            setTotalVisits(visitsData.pagination.total ?? 0);
+          } else {
+            const list = visitsData.visits || (Array.isArray(visitsData) ? visitsData : []);
+            setTotalVisits(list.length);
+            setTotalPages(1);
+          }
         } catch (jsonError) {
           console.error("Error parsing visits JSON:", jsonError);
           setVisits([]);
@@ -229,6 +244,10 @@ export default function CommercialVisitsPage() {
     } finally {
       setLoading(false);
     }
+  }, [filterStatus, filterDateFrom, filterDateTo, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
   }, [filterStatus, filterDateFrom, filterDateTo]);
 
   useEffect(() => {
@@ -791,6 +810,15 @@ export default function CommercialVisitsPage() {
                   ))}
                 </tbody>
               </table>
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  totalItems={totalVisits}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
             </>
           )}
         </div>

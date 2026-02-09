@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
+import { Pagination } from "@/components/ui/Pagination";
 
 type DoctorVisit = {
   id: string;
@@ -37,6 +38,12 @@ export default function DoctorVisitsPage() {
     return d.toISOString().slice(0, 10);
   });
 
+  // Paginacija
+  const itemsPerPage = 20;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalDoctorVisits, setTotalDoctorVisits] = useState(0);
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -56,10 +63,18 @@ export default function DoctorVisitsPage() {
       to.setHours(23, 59, 59, 999);
       
       const res = await fetch(
-        `/api/doctor-visits?from=${from.toISOString()}&to=${to.toISOString()}`
+        `/api/doctor-visits?from=${from.toISOString()}&to=${to.toISOString()}&page=${currentPage}&limit=${itemsPerPage}`
       );
       const data = await res.json();
-      setVisits(data);
+      const list = data.doctorVisits ?? (Array.isArray(data) ? data : []);
+      setVisits(list);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages ?? 1);
+        setTotalDoctorVisits(data.pagination.total ?? 0);
+      } else {
+        setTotalDoctorVisits(list.length);
+        setTotalPages(1);
+      }
     } catch (error) {
       showToast("Greška pri učitavanju posjeta doktora.", "error");
     } finally {
@@ -68,8 +83,12 @@ export default function DoctorVisitsPage() {
   };
 
   useEffect(() => {
-    load();
+    setCurrentPage(1);
   }, [filterDateFrom, filterDateTo]);
+
+  useEffect(() => {
+    load();
+  }, [filterDateFrom, filterDateTo, currentPage]);
 
   const openCreateModal = () => {
     setEditingVisit(null);
@@ -307,6 +326,15 @@ export default function DoctorVisitsPage() {
                 ))}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalDoctorVisits}
+                itemsPerPage={itemsPerPage}
+              />
+            )}
           </div>
         )}
       </div>

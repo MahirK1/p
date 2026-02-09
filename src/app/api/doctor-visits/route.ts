@@ -14,6 +14,9 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const commercialId = searchParams.get("commercialId");
+  const page = Number(searchParams.get("page") || "1");
+  const limit = Number(searchParams.get("limit") || "50");
+  const skip = (page - 1) * limit;
 
   const where: any = {};
 
@@ -34,6 +37,8 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  const total = await prisma.doctorVisit.count({ where });
+
   const doctorVisits = await prisma.doctorVisit.findMany({
     where,
     include: {
@@ -45,9 +50,19 @@ export async function GET(req: NextRequest) {
       },
     },
     orderBy: { scheduledAt: "desc" },
+    skip,
+    take: limit,
   });
 
-  return NextResponse.json(doctorVisits);
+  return NextResponse.json({
+    doctorVisits,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {

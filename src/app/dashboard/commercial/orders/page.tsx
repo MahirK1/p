@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
+import { Pagination } from "@/components/ui/Pagination";
 
 type ClientBranch = {
   id: string;
@@ -44,6 +45,10 @@ export default function CommercialOrdersPage() {
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");
   const clientDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Paginacija (klijentska)
+  const ITEMS_PER_PAGE = 20;
+  const [ordersPage, setOrdersPage] = useState(1);
 
   useEffect(() => {
     async function load() {
@@ -129,6 +134,16 @@ export default function CommercialOrdersPage() {
       `${o.orderNumber} ${o.client.name}`.toLowerCase().includes(term)
     );
   }, [orders, search]);
+
+  const ordersTotalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE));
+  const paginatedOrders = useMemo(() => {
+    const start = (ordersPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, ordersPage]);
+
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [search]);
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -234,7 +249,7 @@ export default function CommercialOrdersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map((o) => (
+                  {paginatedOrders.map((o) => (
                     <tr
                       key={o.id}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
@@ -267,7 +282,7 @@ export default function CommercialOrdersPage() {
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {filteredOrders.map((o) => (
+              {paginatedOrders.map((o) => (
                 <div
                   key={o.id}
                   className="bg-white border border-slate-200 rounded-lg p-4 space-y-2 cursor-pointer hover:bg-slate-50 transition"
@@ -301,6 +316,15 @@ export default function CommercialOrdersPage() {
                 </div>
               ))}
             </div>
+            {ordersTotalPages > 1 && (
+              <Pagination
+                currentPage={ordersPage}
+                totalPages={ordersTotalPages}
+                onPageChange={setOrdersPage}
+                totalItems={filteredOrders.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+              />
+            )}
           </>
         )}
       </div>
