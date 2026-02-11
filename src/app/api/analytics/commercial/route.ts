@@ -39,20 +39,31 @@ export async function GET(req: NextRequest) {
 
   const totalSales = orders.reduce((sum: number, o: { totalAmount: any; }) => sum + Number(o.totalAmount), 0);
 
-  // Prodaja po brandovima
+  // Prodaja po brandovima i po proizvodima (komadi + iznos)
   const salesByBrand = new Map<string | null, number>();
+  const salesByProduct = new Map<string, { quantity: number; amount: number }>();
   for (const order of orders) {
     for (const item of order.items) {
       const brandId = item.product.brand?.id || null;
       const lineTotal = Number(item.lineTotal);
       salesByBrand.set(brandId, (salesByBrand.get(brandId) || 0) + lineTotal);
+      const pid = item.productId;
+      const prev = salesByProduct.get(pid) || { quantity: 0, amount: 0 };
+      salesByProduct.set(pid, {
+        quantity: prev.quantity + (item.quantity || 0),
+        amount: prev.amount + lineTotal,
+      });
     }
   }
 
-  // Konvertuj u array format
   const salesByBrandArray = Array.from(salesByBrand.entries()).map(([brandId, amount]) => ({
     brandId,
     amount,
+  }));
+  const salesByProductArray = Array.from(salesByProduct.entries()).map(([productId, v]) => ({
+    productId,
+    quantity: v.quantity,
+    amount: v.amount,
   }));
 
   // Graf prodaje po danima
@@ -81,6 +92,7 @@ export async function GET(req: NextRequest) {
     totalSales,
     salesByDay,
     salesByBrand: salesByBrandArray,
+    salesByProduct: salesByProductArray,
     visitsCount,
   });
 }

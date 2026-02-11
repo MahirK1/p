@@ -569,7 +569,7 @@ export async function GET(req: NextRequest) {
 
   // 6. Apoteke koje nisu posjećene 3+ mjeseca
   const threeMonthsAgo = new Date(year, month - 1 - 3, 1);
-const now = new Date();
+  const now = new Date();
 
 // 1. Dohvati sve klijente i njihove poslovnice
 const allClients = await prisma.client.findMany({

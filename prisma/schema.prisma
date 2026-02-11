@@ -42,6 +42,7 @@ model User {
   managedVisits   Visit[]          @relation("ManagerVisits")
   plans           PlanAssignment[]
   createdPlans    Plan[]           @relation("UserCreatedPlans")
+  commercialPlans Plan[]           @relation("CommercialPlans")
   messages        ChatMessage[]    @relation("AuthorMessages")
   chatMemberships ChatRoomMember[]
   pushSubscription PushSubscription?
@@ -112,7 +113,8 @@ model Product {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  orderItems OrderItem[]
+  orderItems       OrderItem[]
+  planProductTargets PlanProductTarget[]
 }
 
 model Order {
@@ -167,18 +169,34 @@ model Visit {
 }
 
 model Plan {
-  id          String   @id @default(cuid())
-  brandId     String?
-  brand       Brand?   @relation(fields: [brandId], references: [id])
-  month       Int
-  year        Int
-  totalTarget Decimal  @db.Decimal(12, 2)
-  createdById String
-  createdBy   User     @relation("UserCreatedPlans", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  brandId       String?
+  brand         Brand?   @relation(fields: [brandId], references: [id])
+  commercialId  String?
+  commercial    User?    @relation("CommercialPlans", fields: [commercialId], references: [id])
+  month         Int
+  year          Int
+  totalTarget   Decimal? @db.Decimal(12, 2)
+  createdById   String
+  createdBy     User     @relation("UserCreatedPlans", fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  assignments PlanAssignment[]
+  assignments     PlanAssignment[]
+  productTargets  PlanProductTarget[]
+}
+
+model PlanProductTarget {
+  id             String   @id @default(cuid())
+  planId         String
+  plan           Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantityTarget Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([planId, productId])
 }
 
 model PlanAssignment {

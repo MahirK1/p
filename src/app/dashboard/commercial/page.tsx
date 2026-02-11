@@ -9,16 +9,24 @@ type CommercialAnalytics = {
   totalSales: number;
   salesByDay: { date: string; amount: number }[];
   salesByBrand?: { brandId: string | null; amount: number }[];
+  salesByProduct?: { productId: string; quantity: number; amount: number }[];
   visitsCount: number;
+};
+
+type PlanProductTarget = {
+  productId: string;
+  quantityTarget: number;
+  product?: { id: string; name: string };
 };
 
 type Plan = {
   id: string;
   month: number;
   year: number;
-  totalTarget: number;
+  totalTarget?: number | null;
   brandId?: string | null;
   brand?: { id: string; name: string } | null;
+  productTargets?: PlanProductTarget[];
 };
 
 export default function CommercialDashboardPage() {
@@ -91,11 +99,10 @@ export default function CommercialDashboardPage() {
     load();
   }, []);
 
-  // Izračunaj ostvarenje za svaki plan
+  // Izračunaj ostvarenje za svaki plan (KM i po proizvodima – komadi)
   const plansWithAchievement = useMemo(() => {
     if (!data || !plans || plans.length === 0) return [];
 
-    // Kreiraj mapu prodaje po brandovima
     const brandSalesMap = new Map<string | null, number>();
     if (data.salesByBrand && Array.isArray(data.salesByBrand)) {
       for (const brandSale of data.salesByBrand) {
@@ -103,24 +110,50 @@ export default function CommercialDashboardPage() {
       }
     }
 
+    const productQuantityMap = new Map<string, number>();
+    if (data.salesByProduct && Array.isArray(data.salesByProduct)) {
+      for (const sp of data.salesByProduct) {
+        productQuantityMap.set(sp.productId, sp.quantity);
+      }
+    }
+
     return plans.map((plan) => {
-      const target = Number(plan.totalTarget) || 0;
-      let achieved = 0;
+      const targetKm = plan.totalTarget != null ? Number(plan.totalTarget) : 0;
+      let achievedKm = 0;
 
       if (plan.brandId) {
-        // Plan po brandu - koristi prodaju za taj brand
-        achieved = brandSalesMap.get(plan.brandId) || 0;
+        achievedKm = brandSalesMap.get(plan.brandId) || 0;
       } else {
-        // Globalni plan - koristi ukupnu prodaju
-        achieved = data.totalSales || 0;
+        achievedKm = data.totalSales || 0;
       }
 
-      const percentage = target > 0 ? (achieved / target) * 100 : 0;
+      const percentageKm = targetKm > 0 ? (achievedKm / targetKm) * 100 : 0;
+
+      const productAchievement =
+        plan.productTargets?.map((pt) => {
+          const achieved = productQuantityMap.get(pt.productId) ?? 0;
+          const target = pt.quantityTarget;
+          const pct = target > 0 ? (achieved / target) * 100 : 0;
+          return {
+            productId: pt.productId,
+            productName: pt.product?.name ?? "",
+            quantityTarget: target,
+            quantityAchieved: achieved,
+            percentage: Math.min(100, pct),
+          };
+        }) ?? [];
+
+      const avgProductPct =
+        productAchievement.length > 0
+          ? productAchievement.reduce((s, p) => s + p.percentage, 0) / productAchievement.length
+          : 0;
+      const displayPercentage = targetKm > 0 ? percentageKm : avgProductPct;
 
       return {
         ...plan,
-        achieved,
-        percentage: Math.min(100, percentage),
+        achieved: achievedKm,
+        percentage: Math.min(100, displayPercentage),
+        productAchievement,
       };
     });
   }, [data, plans]);
@@ -155,7 +188,10 @@ export default function CommercialDashboardPage() {
   }
 
   const { totalSales, salesByDay, visitsCount, month, year } = data;
-  const totalTarget = plans.reduce((sum, p) => sum + (Number(p.totalTarget) || 0), 0);
+  const totalTarget = plans.reduce(
+    (sum, p) => sum + (p.totalTarget != null ? Number(p.totalTarget) : 0),
+    0
+  );
   const totalAchieved = plansWithAchievement.reduce((sum, p) => sum + (p.achieved || 0), 0);
   const totalPercentage = totalTarget > 0 ? (totalAchieved / totalTarget) * 100 : 0;
 
@@ -196,7 +232,7 @@ export default function CommercialDashboardPage() {
         </div>
       </div>
 
-      {/* Targeti i progres */}
+      {/* Targeti i progres (KM i po proizvodima) */}
       {plansWithAchievement.length > 0 && (
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-slate-800">
@@ -204,9 +240,10 @@ export default function CommercialDashboardPage() {
           </h2>
           <div className="space-y-4">
             {plansWithAchievement.map((plan) => {
-              const target = Number(plan.totalTarget) || 0;
+              const target = plan.totalTarget != null ? Number(plan.totalTarget) : 0;
               const achieved = plan.achieved || 0;
               const percentage = plan.percentage || 0;
+              const productAchievement = (plan as any).productAchievement ?? [];
 
               return (
                 <div key={plan.id}>
@@ -214,25 +251,40 @@ export default function CommercialDashboardPage() {
                     <span className="font-medium text-slate-900">
                       {plan.brand?.name ?? "Globalno"}
                     </span>
-                    <span className="text-slate-600 font-medium">
-                      {achieved.toFixed(2)} / {target.toFixed(2)} KM
-                      <span className={`ml-2 ${percentage >= 100 ? 'text-green-600' : percentage >= 75 ? 'text-blue-600' : 'text-orange-600'}`}>
-                        ({percentage.toFixed(1)}%)
+                    {target > 0 && (
+                      <span className="text-slate-600 font-medium">
+                        {achieved.toFixed(2)} / {target.toFixed(2)} KM
+                        <span className={`ml-2 ${percentage >= 100 ? "text-green-600" : percentage >= 75 ? "text-blue-600" : "text-orange-600"}`}>
+                          ({percentage.toFixed(1)}%)
+                        </span>
                       </span>
-                    </span>
+                    )}
                   </div>
-                  <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        percentage >= 100
-                          ? "bg-green-500"
-                          : percentage >= 75
-                          ? "bg-blue-500"
-                          : "bg-orange-500"
-                      }`}
-                      style={{ width: `${Math.min(100, percentage)}%` }}
-                    />
-                  </div>
+                  {target > 0 && (
+                    <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden mb-2">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          percentage >= 100 ? "bg-green-500" : percentage >= 75 ? "bg-blue-500" : "bg-orange-500"
+                        }`}
+                        style={{ width: `${Math.min(100, percentage)}%` }}
+                      />
+                    </div>
+                  )}
+                  {productAchievement.length > 0 && (
+                    <div className="ml-2 mt-2 space-y-1.5 text-sm text-slate-600">
+                      {productAchievement.map((pt: { productId: string; productName: string; quantityTarget: number; quantityAchieved: number; percentage: number }) => (
+                        <div key={pt.productId} className="flex items-center justify-between">
+                          <span>{pt.productName}</span>
+                          <span>
+                            {pt.quantityAchieved} / {pt.quantityTarget} kom
+                            <span className={`ml-2 ${pt.percentage >= 100 ? "text-green-600" : pt.percentage >= 75 ? "text-blue-600" : "text-orange-600"}`}>
+                              ({pt.percentage.toFixed(0)}%)
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -14,25 +14,31 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month");
   const commercialId = searchParams.get("commercialId");
 
-  // Komercijalista vidi sve planove (globalni + brandovi) za trenutni mjesec/godinu
+  const includePlan = {
+    brand: true,
+    productTargets: { include: { product: true } },
+    commercial: { select: { id: true, name: true, email: true } },
+  };
+
+  // Komercijalista vidi samo svoje planove za trenutni mjesec/godinu
   if (user.role === "COMMERCIAL" || commercialId === "me") {
     const currentYear = Number(year) || new Date().getFullYear();
     const currentMonth = Number(month) || new Date().getMonth() + 1;
+    const uid = user.id;
 
     const plans = await prisma.plan.findMany({
       where: {
         year: currentYear,
         month: currentMonth,
+        OR: [
+          { commercialId: uid },
+          { assignments: { some: { commercialId: uid } } },
+        ],
       },
-      include: {
-        brand: true,
-      },
-      orderBy: [
-        { createdAt: "desc" },
-      ],
+      include: includePlan,
+      orderBy: [{ createdAt: "desc" }],
     });
 
-    // Sortiraj ručno: globalni prvo (brandId === null), pa brandovi
     plans.sort((a, b) => {
       if (a.brandId === null && b.brandId !== null) return -1;
       if (a.brandId !== null && b.brandId === null) return 1;
@@ -48,13 +54,10 @@ export async function GET(req: NextRequest) {
       ...(year ? { year: Number(year) } : {}),
       ...(month ? { month: Number(month) } : {}),
     },
-    include: {
-      brand: true,
-    },
+    include: includePlan,
     orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
   });
 
-  // Sortiraj ručno: globalni prvo
   plans.sort((a, b) => {
     if (a.brandId === null && b.brandId !== null) return -1;
     if (a.brandId !== null && b.brandId === null) return 1;
@@ -83,19 +86,85 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { brandId, month, year, totalTarget } = body;
+  const { brandId, month, year, totalTarget, commercialId, productTargets } = body;
 
-  if (!month || !year || !totalTarget) {
+  if (!month || !year) {
     return NextResponse.json(
-      { error: "Mjesec, godina i ukupni target su obavezni." },
+      { error: "Mjesec i godina su obavezni." },
       { status: 400 }
     );
   }
 
-  // Provjeri da li već postoji plan za isti brand/mjesec/godinu
+  // Novi način: plan po komercijalisti (commercialId obavezan), s opcionalnim targetima po proizvodu.
+  // Dozvoljeno je više planova za istog komercijalistu u istom mjesecu.
+  if (commercialId) {
+    const plan = await prisma.plan.create({
+      data: {
+        brandId: brandId || null,
+        commercialId,
+        month: Number(month),
+        year: Number(year),
+        totalTarget: totalTarget != null && totalTarget !== "" ? Number(totalTarget) : null,
+        createdById: user.id,
+      },
+      include: {
+        brand: true,
+        commercial: { select: { id: true, name: true, email: true } },
+        productTargets: { include: { product: true } },
+      },
+    });
+
+    const targets = Array.isArray(productTargets) ? productTargets : [];
+    for (const t of targets) {
+      if (t?.productId && (t?.quantity ?? t?.quantityTarget) > 0) {
+        await prisma.planProductTarget.create({
+          data: {
+            planId: plan.id,
+            productId: t.productId,
+            quantityTarget: Number(t.quantity ?? t.quantityTarget),
+          },
+        });
+      }
+    }
+
+    const planWithTargets = await prisma.plan.findUnique({
+      where: { id: plan.id },
+      include: {
+        brand: true,
+        commercial: { select: { id: true, name: true, email: true } },
+        productTargets: { include: { product: true } },
+      },
+    });
+
+    await logAudit(req, user, {
+      action: "CREATE_PLAN",
+      entityType: "Plan",
+      entityId: plan.id,
+      metadata: {
+        commercialId: plan.commercialId,
+        brandId: plan.brandId,
+        month: plan.month,
+        year: plan.year,
+        totalTarget: plan.totalTarget,
+        productTargetsCount: targets.length,
+      },
+    });
+
+    return NextResponse.json(planWithTargets, { status: 201 });
+  }
+
+  // Stari način: globalni plan (bez commercialId) – zahtijeva totalTarget
+  if (totalTarget == null || totalTarget === "") {
+    return NextResponse.json(
+      { error: "Ukupni target (KM) ili commercialId s productTargets su obavezni." },
+      { status: 400 }
+    );
+  }
+
   const existing = await prisma.plan.findFirst({
     where: {
       brandId: brandId || null,
+      commercialId: null,
       month: Number(month),
       year: Number(year),
     },
@@ -118,6 +187,7 @@ export async function POST(req: NextRequest) {
     },
     include: {
       brand: true,
+      productTargets: { include: { product: true } },
     },
   });
 

@@ -325,7 +325,7 @@ export default function ManagerDashboardPage() {
     "Decembar",
   ];
 
-  const weekdayNames = ["Nedelja", "Ponedeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota"];
+  const weekdayNames = ["Ponedeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota", "Nedelja"];
 
   return (
     <div className="space-y-6">
@@ -1368,7 +1368,7 @@ export default function ManagerDashboardPage() {
 
               {/* Churn analiza */}
               {data.churnedClients && data.churnedClients.length > 0 && (
-                <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                <div className="grid gap-4 md:grid-cols-2">
                   <h2 className="mb-4 text-lg font-semibold text-slate-900">
                     Klijenti u riziku (bez narudžbi 3+ mjeseca)
                   </h2>
@@ -1394,7 +1394,32 @@ export default function ManagerDashboardPage() {
               )}
             </div>
           )}
-
+          {/* Klijent u riziku (bez narudžbi 3+ mjeseca) */} 
+          {data.churnedClients && data.churnedClients.length > 0 && (
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">
+                Klijent u riziku (bez narudžbi 3+ mjeseca)
+              </h2>
+              <div className="max-h-64 space-y-2 overflow-y-auto">
+                {data.churnedClients.slice(0, 10).map((client) => (
+                  <div
+                    key={client.clientId}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 p-2 text-sm"
+                  >
+                    <span className="font-medium text-slate-800">{client.client}</span>
+                    <span className="text-xs text-red-600">
+                      {client.monthsSinceLastOrder} mj.
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {data.churnedClients.length > 10 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  +{data.churnedClients.length - 10} više klijenata...
+                </p>
+              )}
+            </div>
+          )}
           {/* Razlog otkazivanja posjeta */}
           {data.cancellationReasons && data.cancellationReasons.length > 0 && (
             <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">

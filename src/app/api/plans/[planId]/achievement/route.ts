@@ -61,8 +61,9 @@ export async function GET(
     }
   }
 
+  const planTarget = plan.totalTarget != null ? Number(plan.totalTarget) : 0;
   const achievementPercentage =
-    (totalAchieved / Number(plan.totalTarget)) * 100;
+    planTarget > 0 ? (totalAchieved / planTarget) * 100 : 0;
 
   const assignmentsWithProgress = plan.assignments.map((a) => ({
     ...a,
