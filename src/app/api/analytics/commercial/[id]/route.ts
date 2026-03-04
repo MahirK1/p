@@ -20,6 +20,9 @@ export async function GET(
 
   const from = new Date(year, month - 1, 1);
   const to = new Date(year, month, 0, 23, 59, 59);
+  const toExtended = new Date(to);
+  toExtended.setDate(toExtended.getDate() + 7);
+  toExtended.setHours(23, 59, 59, 999);
 
   // Komercijalista
   const commercial = await prisma.user.findUnique({
@@ -31,7 +34,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Narudžbe
+  // Narudžbe (za prodaju)
   const orders = await prisma.order.findMany({
     where: {
       commercialId: id,
@@ -50,6 +53,16 @@ export async function GET(
     orderBy: { createdAt: "desc" },
   });
 
+  // Narudžbe za sparivanje s posjetama (prošireni period +7 dana)
+  const ordersForVisitMatching = await prisma.order.findMany({
+    where: {
+      commercialId: id,
+      createdAt: { gte: from, lte: toExtended },
+      status: { in: ["APPROVED", "COMPLETED"] },
+    },
+    include: { client: { select: { id: true, name: true } } },
+  });
+
   // Posjete
   const visits = await prisma.visit.findMany({
     where: {
@@ -58,7 +71,6 @@ export async function GET(
     },
     include: {
       client: { select: { id: true, name: true } },
-      orders: { select: { id: true } },
     },
     orderBy: { scheduledAt: "desc" },
   });
@@ -66,7 +78,18 @@ export async function GET(
   const totalSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const totalOrders = orders.length;
   const visitsDone = visits.filter((v) => v.status === "DONE").length;
-  const visitsWithOrders = visits.filter((v) => v.orders.length > 0).length;
+  // 7-dnevni algoritam: narudžba istog klijenta u roku 7 dana nakon posjete
+  const visitHasOrderIn7Days = (v: { clientId: string; scheduledAt: Date | string; status: string }) => {
+    if (v.status !== "DONE") return false;
+    const visitDate = new Date(v.scheduledAt);
+    const checkUntil = new Date(visitDate);
+    checkUntil.setDate(checkUntil.getDate() + 7);
+    return ordersForVisitMatching.some((o) => {
+      const orderDate = new Date(o.createdAt);
+      return o.clientId === v.clientId && orderDate >= visitDate && orderDate <= checkUntil;
+    });
+  };
+  const visitsWithOrders = visits.filter((v) => visitHasOrderIn7Days(v)).length;
   const conversionRate = visitsDone > 0 ? (visitsWithOrders / visitsDone) * 100 : 0;
 
   // Prodaja po danima
@@ -124,7 +147,7 @@ export async function GET(
       scheduledAt: v.scheduledAt,
       status: v.status,
       client: v.client.name,
-      hasOrder: v.orders.length > 0,
+      hasOrder: visitHasOrderIn7Days(v),
     })),
   });
 }

@@ -23,6 +23,10 @@ export async function GET(req: NextRequest) {
 
   const from = new Date(year, month - 1, 1);
   const to = new Date(year, month, 0, 23, 59, 59);
+  // Prošireni period za sparivanje posjeta s narudžbama (7 dana nakon mjeseca)
+  const toExtended = new Date(to);
+  toExtended.setDate(toExtended.getDate() + 7);
+  toExtended.setHours(23, 59, 59, 999);
 
   // Prethodni period za poređenje
   const prevFrom = new Date(year, month - 2, 1);
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
   // Filter za komercijalistu
   const commercialFilter = commercialId ? { commercialId } : {};
 
-  // Narudžbe - trenutni period
+  // Narudžbe - trenutni period (za prodaju, brojeve)
   const orders = await prisma.order.findMany({
     where: {
       createdAt: { gte: from, lte: to },
@@ -71,6 +75,19 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Narudžbe za sparivanje s posjetama (prošireni period +7 dana)
+  const ordersForVisitMatching = await prisma.order.findMany({
+    where: {
+      createdAt: { gte: from, lte: toExtended },
+      status: { in: ["APPROVED", "COMPLETED"] },
+      ...commercialFilter,
+    },
+    include: {
+      client: { select: { id: true, name: true } },
+      commercial: true,
+    },
+  });
+
   const totalSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const prevTotalSales = prevOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const totalOrders = orders.length;
@@ -100,11 +117,18 @@ export async function GET(req: NextRequest) {
   const visitsDone = visits.filter((v) => v.status === "DONE").length;
   const visitsCanceled = visits.filter((v) => v.status === "CANCELED").length;
 
-  // Posjete sa narudžbama
-  const visitsWithOrders = visits.filter((v) => {
-    return orders.some((o) => o.commercialId === v.commercialId && 
-      Math.abs(new Date(o.createdAt).getTime() - new Date(v.scheduledAt).getTime()) < 7 * 24 * 60 * 60 * 1000);
-  }).length;
+  // Posjete sa narudžbama - 7-dnevni algoritam: narudžba istog klijenta u roku 7 dana nakon posjete
+  const visitHasOrderIn7Days = (v: { clientId: string; scheduledAt: Date | string; status: string }) => {
+    if (v.status !== "DONE") return false;
+    const visitDate = new Date(v.scheduledAt);
+    const checkUntil = new Date(visitDate);
+    checkUntil.setDate(checkUntil.getDate() + 7);
+    return ordersForVisitMatching.some((o) => {
+      const orderDate = new Date(o.createdAt);
+      return o.clientId === v.clientId && orderDate >= visitDate && orderDate <= checkUntil;
+    });
+  };
+  const visitsWithOrders = visits.filter((v) => visitHasOrderIn7Days(v)).length;
 
   const conversionRate = visitsDone > 0 ? (visitsWithOrders / visitsDone) * 100 : 0;
 
@@ -264,19 +288,25 @@ export async function GET(req: NextRequest) {
     existing.visitDates.push(v.scheduledAt);
     salesByCommercialMap.set(key, existing);
   }
-  // Izračunaj visitsWithOrders i avgDaysToOrder
+  // Izračunaj visitsWithOrders i avgDaysToOrder - 7-dnevni algoritam po clientId
   for (const [key, data] of salesByCommercialMap.entries()) {
+    const commercialVisits = visits.filter((v) => v.commercialId === key);
+    const commercialOrders = ordersForVisitMatching.filter((o) => o.commercialId === key);
     let visitsWithOrdersCount = 0;
     let totalDaysToOrder = 0;
     let daysToOrderCount = 0;
-    for (const visitDate of data.visitDates) {
-      const matchingOrder = data.orderDates.find((orderDate) => {
-        const diff = Math.abs(orderDate.getTime() - visitDate.getTime());
-        return diff < 7 * 24 * 60 * 60 * 1000 && orderDate >= visitDate;
+    for (const v of commercialVisits) {
+      if (v.status !== "DONE") continue;
+      const visitDate = new Date(v.scheduledAt);
+      const checkUntil = new Date(visitDate);
+      checkUntil.setDate(checkUntil.getDate() + 7);
+      const matchingOrder = commercialOrders.find((o) => {
+        const orderDate = new Date(o.createdAt);
+        return o.clientId === v.clientId && orderDate >= visitDate && orderDate <= checkUntil;
       });
       if (matchingOrder) {
         visitsWithOrdersCount++;
-        const days = Math.floor((matchingOrder.getTime() - visitDate.getTime()) / (24 * 60 * 60 * 1000));
+        const days = (new Date(matchingOrder.createdAt).getTime() - visitDate.getTime()) / (24 * 60 * 60 * 1000);
         totalDaysToOrder += days;
         daysToOrderCount++;
       }

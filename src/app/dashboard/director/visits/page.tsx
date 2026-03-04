@@ -47,6 +47,7 @@ export default function DirectorVisitsPage() {
   const [to, setTo] = useState("");
   const [filterCommercial, setFilterCommercial] = useState("");
   const [filterClient, setFilterClient] = useState("");
+  const [filterBranch, setFilterBranch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   
   // Searchable dropdown za filter klijenta
@@ -62,6 +63,7 @@ export default function DirectorVisitsPage() {
   // State za branch dropdown
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const filterBranchDropdownRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     clientId: "",
@@ -93,6 +95,9 @@ export default function DirectorVisitsPage() {
       }
       if (filterClient) {
         visitsUrl += `&clientId=${filterClient}`;
+      }
+      if (filterBranch) {
+        visitsUrl += `&branchId=${filterBranch}`;
       }
       if (filterStatus) {
         visitsUrl += `&status=${filterStatus}`;
@@ -203,7 +208,7 @@ export default function DirectorVisitsPage() {
 
   useEffect(() => {
     setCurrentPage(1); // Reset na prvu stranicu kada se promijene filteri
-  }, [from, to, filterCommercial, filterClient, filterStatus]);
+  }, [from, to, filterCommercial, filterClient, filterBranch, filterStatus]);
 
   useEffect(() => {
     // Only load if dates are initialized
@@ -211,7 +216,7 @@ export default function DirectorVisitsPage() {
       load();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, filterCommercial, filterClient, filterStatus, currentPage]);
+  }, [from, to, filterCommercial, filterClient, filterBranch, filterStatus, currentPage]);
 
   // Zatvori dropdown kada klikneš van njega
   useEffect(() => {
@@ -244,10 +249,18 @@ export default function DirectorVisitsPage() {
   
   const handleFilterClientSelect = (clientId: string) => {
     setFilterClient(clientId);
+    setFilterBranch(""); // Reset branch kada se promijeni klijent
     const client = clients.find((c) => c.id === clientId);
     setFilterClientSearch(client?.name || "");
     setFilterClientDropdownOpen(false);
   };
+
+  // Dostupni branchovi za odabranog klijenta u filteru
+  const availableBranchesForFilter = useMemo(() => {
+    if (!filterClient) return [];
+    const client = clients.find((c) => c.id === filterClient);
+    return client?.branches ?? [];
+  }, [clients, filterClient]);
 
   // Filtrirani klijenti za pretragu
   const filteredClients = useMemo(() => {
@@ -502,6 +515,27 @@ export default function DirectorVisitsPage() {
             )}
           </div>
         </div>
+        {filterClient && availableBranchesForFilter.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-slate-500">
+              Podružnica
+            </label>
+            <div className="relative" ref={filterBranchDropdownRef}>
+              <select
+                value={filterBranch}
+                onChange={(e) => setFilterBranch(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none bg-white min-w-[140px]"
+              >
+                <option value="">Sve podružnice</option>
+                {availableBranchesForFilter.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-slate-500">
             Status

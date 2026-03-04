@@ -50,6 +50,7 @@ export default function ManagerVisitsPage() {
   });
   const [filterCommercial, setFilterCommercial] = useState("");
   const [filterClient, setFilterClient] = useState("");
+  const [filterBranch, setFilterBranch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   
   // Searchable dropdown za filter klijenta
@@ -65,6 +66,8 @@ export default function ManagerVisitsPage() {
   // State za branch dropdown
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const [filterBranchDropdownOpen, setFilterBranchDropdownOpen] = useState(false);
+  const filterBranchDropdownRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     clientId: "",
@@ -86,6 +89,7 @@ export default function ManagerVisitsPage() {
   const [commentText, setCommentText] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [detailModalVisit, setDetailModalVisit] = useState<Visit | null>(null);
+  const [assignVisitModalOpen, setAssignVisitModalOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -95,6 +99,9 @@ export default function ManagerVisitsPage() {
     }
     if (filterClient) {
       visitsUrl += `&clientId=${filterClient}`;
+    }
+    if (filterBranch) {
+      visitsUrl += `&branchId=${filterBranch}`;
     }
     if (filterStatus) {
       visitsUrl += `&status=${filterStatus}`;
@@ -130,12 +137,12 @@ export default function ManagerVisitsPage() {
 
   useEffect(() => {
     setCurrentPage(1); // Reset na prvu stranicu kada se promijene filteri
-  }, [from, to, filterCommercial, filterClient, filterStatus]);
+  }, [from, to, filterCommercial, filterClient, filterBranch, filterStatus]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, filterCommercial, filterClient, filterStatus, currentPage]);
+  }, [from, to, filterCommercial, filterClient, filterBranch, filterStatus, currentPage]);
 
   // Zatvori dropdown kada klikneš van njega
   useEffect(() => {
@@ -149,13 +156,16 @@ export default function ManagerVisitsPage() {
       if (filterClientDropdownRef.current && !filterClientDropdownRef.current.contains(event.target as Node)) {
         setFilterClientDropdownOpen(false);
       }
+      if (filterBranchDropdownRef.current && !filterBranchDropdownRef.current.contains(event.target as Node)) {
+        setFilterBranchDropdownOpen(false);
+      }
     }
 
-    if (clientDropdownOpen || branchDropdownOpen || filterClientDropdownOpen) {
+    if (clientDropdownOpen || branchDropdownOpen || filterClientDropdownOpen || filterBranchDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
-  }, [clientDropdownOpen, branchDropdownOpen, filterClientDropdownOpen]);
+  }, [clientDropdownOpen, branchDropdownOpen, filterClientDropdownOpen, filterBranchDropdownOpen]);
   
   // Filtrirani klijenti za filter dropdown
   const filteredClientsForFilter = useMemo(() => {
@@ -168,10 +178,18 @@ export default function ManagerVisitsPage() {
   
   const handleFilterClientSelect = (clientId: string) => {
     setFilterClient(clientId);
+    setFilterBranch(""); // Reset branch kada se promijeni klijent
     const client = clients.find((c) => c.id === clientId);
     setFilterClientSearch(client?.name || "");
     setFilterClientDropdownOpen(false);
   };
+
+  // Dostupni branchovi za odabranog klijenta u filteru
+  const availableBranchesForFilter = useMemo(() => {
+    if (!filterClient) return [];
+    const client = clients.find((c) => c.id === filterClient);
+    return client?.branches ?? [];
+  }, [clients, filterClient]);
 
   // Filtrirani klijenti za pretragu
   const filteredClients = useMemo(() => {
@@ -236,6 +254,7 @@ export default function ManagerVisitsPage() {
     if (res.ok) {
       setForm((f) => ({ ...f, note: "", clientId: "", branchIds: [] }));
       setClientSearch(""); // Reset search
+      setAssignVisitModalOpen(false);
       await load();
     } else {
       const err = await res.text();
@@ -376,6 +395,13 @@ export default function ManagerVisitsPage() {
             Dodijeli posjete komercijalistima i prati realizaciju.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setAssignVisitModalOpen(true)}
+          className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-blue-500 transition"
+        >
+          Dodjeli posjetu
+        </button>
       </header>
 
       {/* Filteri po datumu/korisniku/klijentu */}
@@ -468,6 +494,27 @@ export default function ManagerVisitsPage() {
             )}
           </div>
         </div>
+        {filterClient && availableBranchesForFilter.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-slate-500">
+              Podružnica
+            </label>
+            <div className="relative" ref={filterBranchDropdownRef}>
+              <select
+                value={filterBranch}
+                onChange={(e) => setFilterBranch(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none bg-white min-w-[140px]"
+              >
+                <option value="">Sve podružnice</option>
+                {availableBranchesForFilter.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-slate-500">
             Status
@@ -485,223 +532,151 @@ export default function ManagerVisitsPage() {
         </div>
       </div>
 
-      {/* Forma za novu posjetu */}
-      <form
-        onSubmit={onCreate}
-        className="grid gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm text-sm md:grid-cols-4"
-      >
-        {/* Klijent - Searchable Dropdown */}
-        <div className="md:col-span-2">
-          <label className="text-xs font-medium text-slate-500">
-            Klijent *
-          </label>
-          <div className="relative mt-1" ref={clientDropdownRef}>
-            <input
-              type="text"
-              value={clientSearch}
-              onChange={(e) => {
-                setClientSearch(e.target.value);
-                setClientDropdownOpen(true);
-                setForm((f) => ({ ...f, clientId: "", branchIds: [] })); // Reset selection when typing
-              }}
-              onFocus={() => setClientDropdownOpen(true)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 focus:border-blue-500 focus:outline-none"
-              placeholder="Unesi naziv klijenta ili klikni da vidiš listu..."
-            />
-            {clientDropdownOpen && filteredClients.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
-                {filteredClients.map((client) => (
-                  <button
-                    key={client.id}
-                    type="button"
-                    onClick={() => handleClientSelect(client.id)}
-                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 transition ${
-                      form.clientId === client.id ? "bg-blue-50" : ""
-                    }`}
-                  >
-                    <div className="font-medium text-sm text-slate-800">
-                      {client.name}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {/* Branch selection - prikaži samo ako klijent ima branchove */}
-          {selectedClient && availableBranches.length > 0 && (
-            <div className="mt-2">
-              <label className="text-xs font-medium text-slate-500">
-                Podružnice (opcionalno)
-              </label>
-              <div className="relative mt-1" ref={branchDropdownRef}>
+      {/* Modal za dodjelu posjete */}
+      {assignVisitModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div
+              className="w-full max-w-xl rounded-2xl bg-white shadow-xl border border-slate-200 overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h2 className="text-lg font-semibold text-slate-900">Dodjeli posjetu</h2>
                 <button
                   type="button"
-                  onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm focus:border-blue-500 focus:outline-none bg-white"
+                  className="rounded-lg p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                  onClick={() => setAssignVisitModalOpen(false)}
+                  aria-label="Zatvori"
                 >
-                  {form.branchIds.length === 0 ? (
-                    <span className="text-slate-500">Glavni klijent (nije odabrana podružnica)</span>
-                  ) : form.branchIds.length === 1 ? (
-                    <span className="text-slate-800">
-                      {availableBranches.find(b => b.id === form.branchIds[0])?.name || "1 podružnica"}
-                    </span>
-                  ) : (
-                    <span className="text-slate-800">
-                      {form.branchIds.length} podružnica odabrano
-                    </span>
-                  )}
-                  <span className="float-right text-slate-400">▼</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                {branchDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg">
-                    <div className="p-2">
-                      <label className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded">
+              </div>
+              <form onSubmit={onCreate} className="flex flex-col">
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Klijent *</label>
+                      <div className="relative" ref={clientDropdownRef}>
                         <input
-                          type="checkbox"
-                          checked={form.branchIds.length === 0}
+                          type="text"
+                          value={clientSearch}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setForm((f) => ({ ...f, branchIds: [] }));
-                            }
+                            setClientSearch(e.target.value);
+                            setClientDropdownOpen(true);
+                            setForm((f) => ({ ...f, clientId: "", branchIds: [] }));
                           }}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          onFocus={() => setClientDropdownOpen(true)}
+                          className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition"
+                          placeholder="Pretraži ili odaberi klijenta..."
                         />
-                        <span className="text-sm text-slate-700">Glavni klijent</span>
-                      </label>
-                      {availableBranches.map((branch) => (
-                        <label
-                          key={branch.id}
-                          className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-2 rounded"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={form.branchIds.includes(branch.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setForm((f) => ({
-                                  ...f,
-                                  branchIds: [...f.branchIds, branch.id],
-                                }));
-                              } else {
-                                setForm((f) => ({
-                                  ...f,
-                                  branchIds: f.branchIds.filter((id) => id !== branch.id),
-                                }));
-                              }
-                            }}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-slate-700">{branch.name}</span>
-                        </label>
-                      ))}
+                        {clientDropdownOpen && filteredClients.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+                            {filteredClients.map((client) => (
+                              <button
+                                key={client.id}
+                                type="button"
+                                onClick={() => handleClientSelect(client.id)}
+                                className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-50 transition ${form.clientId === client.id ? "bg-blue-50 text-blue-700" : "text-slate-700"}`}
+                              >
+                                {client.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Komercijalista *</label>
+                      <select
+                        value={form.commercialId}
+                        onChange={(e) => setForm((f) => ({ ...f, commercialId: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition bg-white"
+                      >
+                        <option value="">Odaberi</option>
+                        {commercials.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                      </select>
                     </div>
                   </div>
-                )}
-              </div>
+                  {selectedClient && availableBranches.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Podružnice (opcionalno)</label>
+                      <div className="relative" ref={branchDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
+                          className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-left text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition bg-white flex items-center justify-between"
+                        >
+                          {form.branchIds.length === 0 ? (
+                            <span className="text-slate-500">Glavni klijent</span>
+                          ) : form.branchIds.length === 1 ? (
+                            <span className="text-slate-800">{availableBranches.find(b => b.id === form.branchIds[0])?.name || "1 podružnica"}</span>
+                          ) : (
+                            <span className="text-slate-800">{form.branchIds.length} podružnice</span>
+                          )}
+                          <svg className={`w-4 h-4 text-slate-400 transition ${branchDropdownOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {branchDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-1.5 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+                            <label className="flex items-center px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
+                              <input type="checkbox" checked={form.branchIds.length === 0} onChange={(e) => e.target.checked && setForm((f) => ({ ...f, branchIds: [] }))} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                              <span className="ml-3 text-sm text-slate-700">Glavni klijent</span>
+                            </label>
+                            {availableBranches.map((branch) => (
+                              <label key={branch.id} className="flex items-center px-4 py-2.5 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" checked={form.branchIds.includes(branch.id)} onChange={(e) => e.target.checked ? setForm((f) => ({ ...f, branchIds: [...f.branchIds, branch.id] })) : setForm((f) => ({ ...f, branchIds: f.branchIds.filter((id) => id !== branch.id) }))} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                <span className="ml-3 text-sm text-slate-700">{branch.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Datum *</label>
+                      <input
+                        type="date"
+                        value={form.date}
+                        onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Vrijeme</label>
+                      <div className="flex gap-2">
+                        <select value={form.hour} onChange={(e) => { const h = e.target.value; setForm((f) => ({ ...f, hour: h, time: `${h.padStart(2, "0")}:${f.minute.padStart(2, "0")}` })); }} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition bg-white">
+                          {Array.from({ length: 24 }, (_, i) => <option key={i} value={i.toString().padStart(2, "0")}>{i.toString().padStart(2, "0")}h</option>)}
+                        </select>
+                        <select value={form.minute} onChange={(e) => { const m = e.target.value; setForm((f) => ({ ...f, minute: m, time: `${f.hour.padStart(2, "0")}:${m.padStart(2, "0")}` })); }} className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition bg-white">
+                          {Array.from({ length: 60 }, (_, i) => i).map((m) => <option key={m} value={m.toString().padStart(2, "0")}>{m.toString().padStart(2, "0")}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Napomena</label>
+                    <input
+                      value={form.note}
+                      onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 focus:outline-none transition placeholder:text-slate-400"
+                      placeholder="Kratka napomena o cilju posjete..."
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/30">
+                  <button type="button" onClick={() => setAssignVisitModalOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                    Odustani
+                  </button>
+                  <button type="submit" disabled={submitting} className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed transition shadow-sm">
+                    {submitting ? "Dodajem..." : "Dodaj posjetu"}
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-slate-500">
-            Komercijalista *
-          </label>
-          <select
-            value={form.commercialId}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, commercialId: e.target.value }))
-            }
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-          >
-            <option value="">Odaberi</option>
-            {commercials.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex gap-2">
-          <div>
-            <label className="text-xs font-medium text-slate-500">
-              Datum *
-            </label>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, date: e.target.value }))
-              }
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-slate-500">
-              Vrijeme
-            </label>
-            <div className="mt-1 flex gap-2">
-              <select
-                value={form.hour}
-                onChange={(e) => {
-                  const newHour = e.target.value;
-                  setForm((f) => ({
-                    ...f,
-                    hour: newHour,
-                    time: `${newHour.padStart(2, "0")}:${f.minute.padStart(2, "0")}`,
-                  }));
-                }}
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2"
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i.toString().padStart(2, "0")}>
-                    {i.toString().padStart(2, "0")}h
-                  </option>
-                ))}
-              </select>
-              <select
-                value={form.minute}
-                onChange={(e) => {
-                  const newMinute = e.target.value;
-                  setForm((f) => ({
-                    ...f,
-                    minute: newMinute,
-                    time: `${f.hour.padStart(2, "0")}:${newMinute.padStart(2, "0")}`,
-                  }));
-                }}
-                className="flex-1 rounded-lg border border-slate-200 px-3 py-2"
-              >
-                {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                  <option key={m} value={m.toString().padStart(2, "0")}>
-                    {m.toString().padStart(2, "0")}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-        <div className="md:col-span-3">
-          <label className="text-xs font-medium text-slate-500">
-            Napomena
-          </label>
-          <input
-            value={form.note}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, note: e.target.value }))
-            }
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
-            placeholder="Kratka napomena o cilju posjete..."
-          />
-        </div>
-        <div className="flex items-end justify-end">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-blue-500 disabled:opacity-60"
-          >
-            {submitting ? "Dodajem..." : "Dodaj posjetu"}
-          </button>
-        </div>
-      </form>
+          </div>,
+          document.body
+        )}
 
       {/* Lista posjeta */}
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">

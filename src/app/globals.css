@@ -94,6 +94,37 @@
     --default-mono-font-family: var(--font-mono);
   }
 }
+
+@media print {
+  html, body {
+    overflow: visible !important;
+  }
+
+  body {
+    margin: 12mm;
+  }
+
+  .invoice-container {
+    overflow: visible !important;
+  }
+
+  .invoice-container table {
+    page-break-inside: auto;
+  }
+
+  .invoice-container tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .invoice-container thead {
+    display: table-header-group;
+  }
+
+  .invoice-container tfoot {
+    display: table-footer-group;
+  }
+}
 @layer base {
   *, ::after, ::before, ::backdrop, ::file-selector-button {
     box-sizing: border-box;

@@ -25,6 +25,7 @@ export default function DoctorVisitsPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingVisit, setEditingVisit] = useState<DoctorVisit | null>(null);
+  const [detailVisit, setDetailVisit] = useState<DoctorVisit | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [filterDateFrom, setFilterDateFrom] = useState(() => {
@@ -283,7 +284,9 @@ export default function DoctorVisitsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-800">
-                      {visit.firstName} {visit.lastName}
+                      {visit.firstName || visit.lastName
+                        ? `${visit.firstName} ${visit.lastName}`.trim()
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{visit.institution}</td>
                     <td className="px-4 py-3 text-slate-600">
@@ -308,6 +311,12 @@ export default function DoctorVisitsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setDetailVisit(visit)}
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                        >
+                          Detalji
+                        </button>
                         <button
                           onClick={() => openEditModal(visit)}
                           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 transition"
@@ -339,6 +348,63 @@ export default function DoctorVisitsPage() {
         )}
       </div>
 
+      {detailVisit && (
+        <Modal
+          isOpen={Boolean(detailVisit)}
+          onClose={() => setDetailVisit(null)}
+          title="Detalji posjete doktora"
+          size="md"
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <div>
+              <div className="text-xs font-medium text-slate-500">Datum i vrijeme</div>
+              <div>
+                {new Date(detailVisit.scheduledAt).toLocaleDateString("bs-BA", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                  year: "numeric",
+                })}{" "}
+                u{" "}
+                {new Date(detailVisit.scheduledAt).toLocaleTimeString("bs-BA", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Doktor</div>
+              <div className="font-medium text-slate-900">
+                {detailVisit.firstName || detailVisit.lastName
+                  ? `${detailVisit.firstName} ${detailVisit.lastName}`.trim()
+                  : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Ustanova</div>
+              <div>{detailVisit.institution}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Kontakt</div>
+              <div>{detailVisit.contactNumber || "—"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Email</div>
+              <div>{detailVisit.email || "—"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Napomena</div>
+              <div className="whitespace-pre-wrap">{detailVisit.note || "—"}</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-500">Komentar managera</div>
+              <div className="whitespace-pre-wrap">{detailVisit.managerComment || "—"}</div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {modalOpen && (
         <Modal
           isOpen={modalOpen}
@@ -353,25 +419,23 @@ export default function DoctorVisitsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Ime *
+                  Ime
                 </label>
                 <input
                   type="text"
                   value={form.firstName}
                   onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  required
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">
-                  Prezime *
+                  Prezime
                 </label>
                 <input
                   type="text"
                   value={form.lastName}
                   onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  required
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>

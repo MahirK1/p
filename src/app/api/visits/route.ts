@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get("to");
   const commercialId = searchParams.get("commercialId");
   const clientId = searchParams.get("clientId");
+  const branchId = searchParams.get("branchId");
   const status = searchParams.get("status");
   
   // Paginacija
@@ -32,6 +33,9 @@ export async function GET(req: NextRequest) {
     };
   }
   if (clientId) where.clientId = clientId;
+  if (branchId) {
+    where.branches = { some: { branchId } };
+  }
   if (status && ["PLANNED", "DONE", "CANCELED"].includes(status)) {
     where.status = status;
   }

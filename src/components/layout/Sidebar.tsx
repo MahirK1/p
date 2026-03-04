@@ -11,6 +11,7 @@ import {
   ChatBubbleLeftRightIcon,
   UsersIcon,
   CubeIcon,
+  MapPinIcon,
   ArrowRightOnRectangleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -298,6 +299,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               </Link>
 
               <Link 
+                href="/dashboard/manager/field-tracking" 
+                className={getLinkClass("/dashboard/manager/field-tracking")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Praćenje terena" : undefined}
+              >
+                <MapPinIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Praćenje terena</span>}
+              </Link>
+
+              <Link 
                 href="/dashboard/manager/chat" 
                 className={getLinkClass("/dashboard/manager/chat")}
                 onClick={handleLinkClick}
@@ -378,6 +389,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 <UsersIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Posjete doktora</span>}
               </Link>
+
+              <Link
+                href="/dashboard/manager/field-tracking"
+                className={getLinkClass("/dashboard/manager/field-tracking")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Praćenje terena" : undefined}
+              >
+                <MapPinIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Praćenje terena</span>}
+              </Link>
             </>
           )}
 
@@ -441,6 +462,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Audit log</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/manager/field-tracking"
+                className={getLinkClass("/dashboard/manager/field-tracking")}
+                onClick={handleLinkClick}
+                title={collapsed ? "Praćenje terena" : undefined}
+              >
+                <MapPinIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Praćenje terena</span>}
               </Link>
             </>
           )}

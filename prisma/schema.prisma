@@ -34,6 +34,8 @@ model User {
   password  String
   name      String
   role      UserRole @default(COMMERCIAL)
+  attendoEmployeeId String?   // Mapiranje na Attendo employee.id za prisustvo
+  nexDeviceId       String?   // Mapiranje na NEX deviceId za GPS praćenje vozila
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -59,6 +61,8 @@ model Client {
   pdvBroj       String?        // Partner.PDV ili EUPDVBroj
   address       String?        // Partner.ADRESA
   city          String?        // Partner.SJEDISTE
+  latitude      Float?         // Za prikaz na mapi
+  longitude     Float?         // Za prikaz na mapi
   phone         String?        // Partner.Telefon
   email         String?        // Partner.EMAIL
   contactPerson String?        // Kontakt osoba
@@ -89,6 +93,8 @@ model ClientBranch {
   client        Client   @relation(fields: [clientId], references: [id])
   address       String?  // RjPartnera.Adresa
   city          String?  // RjPartnera.Mjesto
+  latitude      Float?   // Za prikaz na mapi
+  longitude     Float?   // Za prikaz na mapi
   phone         String?  // RjPartnera.Telefon
   email         String?  // RjPartnera.Email
   contactPerson String?  // RjPartnera.KontaktOsoba
@@ -298,6 +304,38 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
+}
+
+/// Prvo uočeno paljenje vozila po danu (ignition ON) – aproksimacija vremena starta
+model GpsIgnitionLog {
+  id             String   @id @default(cuid())
+  deviceId       String
+  date           String   // YYYY-MM-DD
+  firstIgnitionAt DateTime
+  createdAt      DateTime @default(now())
+
+  @@unique([deviceId, date])
+  @@index([deviceId, date])
+  @@map("gps_ignition_logs")
+}
+
+/// Historija GPS pozicija po danu (snimamo periodično)
+model GpsPositionLog {
+  id           String   @id @default(cuid())
+  deviceId     String
+  commercialId String?
+  date         String   // YYYY-MM-DD
+  capturedAt   DateTime
+  latitude     Float
+  longitude    Float
+  speed        Float?
+  ignitionState String?
+  createdAt    DateTime @default(now())
+
+  @@unique([deviceId, capturedAt])
+  @@index([deviceId, date])
+  @@index([commercialId, date])
+  @@map("gps_position_logs")
 }
 
 model DoctorVisit {

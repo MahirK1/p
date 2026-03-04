@@ -71,6 +71,7 @@ export default function CommercialVisitsPage() {
   const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+  const [detailModalVisit, setDetailModalVisit] = useState<Visit | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completionSubmitting, setCompletionSubmitting] = useState(false);
   const [cancellationSubmitting, setCancellationSubmitting] = useState(false);
@@ -690,6 +691,12 @@ export default function CommercialVisitsPage() {
                     </div>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-100">
+                      <button
+                        className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                        onClick={() => setDetailModalVisit(v)}
+                      >
+                        Detalji
+                      </button>
                       {v.status !== "DONE" && v.status !== "CANCELED" && (
                         <button
                           className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 transition"
@@ -788,6 +795,12 @@ export default function CommercialVisitsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                            onClick={() => setDetailModalVisit(v)}
+                          >
+                            Detalji
+                          </button>
                           {v.status !== "DONE" && v.status !== "CANCELED" && (
                             <button
                               className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition"
@@ -823,6 +836,80 @@ export default function CommercialVisitsPage() {
           )}
         </div>
       </div>
+
+      {/* Modal s detaljima posjete */}
+      {detailModalVisit &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div
+              className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-slate-900">Detalji posjete</h2>
+                <button
+                  type="button"
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                  onClick={() => setDetailModalVisit(null)}
+                  aria-label="Zatvori"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="px-6 py-4 overflow-y-auto space-y-4 text-sm">
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Datum i vrijeme</span>
+                  <p className="text-slate-800">
+                    {safeFormatDate(detailModalVisit.scheduledAt, {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}{" "}
+                    u {safeFormatTime(detailModalVisit.scheduledAt, {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Klijent</span>
+                  <p className="text-slate-800 font-medium">{detailModalVisit.client.name}</p>
+                  {detailModalVisit.branches && detailModalVisit.branches.length > 0 && (
+                    <p className="text-slate-600 mt-1">
+                      Podružnice: {detailModalVisit.branches.map((vb) => vb.branch.name).join(", ")}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Status</span>
+                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusColor(detailModalVisit.status)}`}>
+                    {statusLabel(detailModalVisit.status)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Napomena</span>
+                  <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.note || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-xs font-medium mb-0.5">Komentar managera</span>
+                  <p className="text-slate-800 whitespace-pre-wrap">{detailModalVisit.managerComment || "—"}</p>
+                </div>
+              </div>
+              <div className="border-t border-slate-100 px-6 py-4 flex-shrink-0 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                  onClick={() => setDetailModalVisit(null)}
+                >
+                  Zatvori
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal za završavanje posjete - omogućava dodavanje kontakt osobe i napomene */}
       {completionModalOpen && selectedVisit &&

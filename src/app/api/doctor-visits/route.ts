@@ -97,9 +97,9 @@ export async function POST(req: NextRequest) {
     commercialId,
   } = body;
 
-  if (!firstName || !lastName || !institution || !scheduledAt) {
+  if (!institution || !scheduledAt) {
     return NextResponse.json(
-      { error: "Ime, prezime, ustanova i datum su obavezni." },
+      { error: "Ustanova i datum su obavezni." },
       { status: 400 }
     );
   }
@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
   const doctorVisit = await prisma.doctorVisit.create({
     data: {
       commercialId: finalCommercialId,
-      firstName,
-      lastName,
+      firstName: firstName ?? "",
+      lastName: lastName ?? "",
       institution,
       contactNumber: contactNumber || null,
       email: email || null,
@@ -175,8 +175,8 @@ export async function PATCH(req: NextRequest) {
   const doctorVisit = await prisma.doctorVisit.update({
     where: { id },
     data: {
-      firstName: firstName || existingVisit.firstName,
-      lastName: lastName || existingVisit.lastName,
+      firstName: firstName !== undefined ? firstName : existingVisit.firstName,
+      lastName: lastName !== undefined ? lastName : existingVisit.lastName,
       institution: institution || existingVisit.institution,
       contactNumber: contactNumber !== undefined ? contactNumber : existingVisit.contactNumber,
       email: email !== undefined ? email : existingVisit.email,

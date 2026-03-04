@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
       role: true,
       createdAt: true,
       canAccessDoctorVisits: true,
+      attendoEmployeeId: true,
+      nexDeviceId: true,
     },
     orderBy: { name: "asc" },
   });
@@ -126,7 +128,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { id, name, email, role, password, canAccessDoctorVisits } = body;
+  const { id, name, email, role, password, canAccessDoctorVisits, attendoEmployeeId, nexDeviceId } = body;
 
   if (!id || !name || !email || !role) {
     return NextResponse.json(
@@ -160,6 +162,12 @@ export async function PUT(req: NextRequest) {
   if (canAccessDoctorVisits !== undefined) {
     updateData.canAccessDoctorVisits = Boolean(canAccessDoctorVisits);
   }
+  if (attendoEmployeeId !== undefined) {
+    updateData.attendoEmployeeId = attendoEmployeeId === "" || attendoEmployeeId == null ? null : String(attendoEmployeeId);
+  }
+  if (nexDeviceId !== undefined) {
+    updateData.nexDeviceId = nexDeviceId === "" || nexDeviceId == null ? null : String(nexDeviceId);
+  }
 
   const updatedUser = await prisma.user.update({
     where: { id },
@@ -171,6 +179,8 @@ export async function PUT(req: NextRequest) {
       role: true,
       createdAt: true,
       canAccessDoctorVisits: true,
+      attendoEmployeeId: true,
+      nexDeviceId: true,
     },
   });
 

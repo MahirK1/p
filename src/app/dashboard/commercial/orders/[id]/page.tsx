@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import jsPDF from "jspdf";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useSession } from "next-auth/react";
 
@@ -33,6 +32,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
   const { id } = use(params);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
   const loadOrder = async () => {
     setLoading(true);
@@ -61,123 +61,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
   }, [id, session]);
 
   const downloadPDF = () => {
-    if (!order) return;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-    const contentWidth = pageWidth - 2 * margin;
-    let yPos = margin;
-
-    doc.setFontSize(20);
-    doc.text("NARUDŽBA", margin, yPos);
-    yPos += 10;
-
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Broj: ${order.orderNumber}`, margin, yPos);
-    yPos += 15;
-
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Klijent: ${order.client.name}`, margin, yPos);
-    yPos += 7;
-    doc.text(`Komercijalista: ${order.commercial.name}`, margin, yPos);
-    yPos += 7;
-    doc.text(
-      `Datum: ${new Date(order.createdAt).toLocaleDateString("bs-BA")}`,
-      margin,
-      yPos
-    );
-    yPos += 10;
-
-    const tableTop = yPos;
-    doc.setFontSize(10);
-    doc.setDrawColor(200, 200, 200);
-    doc.setFillColor(240, 240, 240);
-    doc.rect(margin, tableTop, contentWidth, 8, "F");
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("#", margin + 2, tableTop + 6);
-    doc.text("Artikal", margin + 10, tableTop + 6);
-    doc.text("Kataloški broj", margin + 20, tableTop + 6);
-    doc.text("Kol.", margin + 75, tableTop + 6);
-    doc.text("Cijena", margin + 95, tableTop + 6);
-    doc.text("Rabat", margin + 120, tableTop + 6);
-    doc.text("Ukupno", margin + 150, tableTop + 6);
-
-    yPos = tableTop + 8;
-    doc.setFont("helvetica", "normal");
-
-    order.items.forEach((item: any, i) => {
-      if (yPos > doc.internal.pageSize.getHeight() - 30) {
-        doc.addPage();
-        yPos = margin;
-      }
-
-      doc.line(margin, yPos, pageWidth - margin, yPos);
-      yPos += 7;
-
-      const discountPercent = item.discountPercent ? Number(item.discountPercent) : 0;
-      const baseTotal = Number(item.unitPrice) * item.quantity;
-      const discountAmount = (baseTotal * discountPercent) / 100;
-      const finalTotal = baseTotal - discountAmount;
-
-      doc.text(`${i + 1}`, margin + 2, yPos);
-      doc.text(item.product.name, margin + 10, yPos);
-      
-      if (item.product.sku) {
-        doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`SKU: ${item.product.sku}`, margin + 10, yPos + 4);
-        doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-      }
-      doc.text(item.product.catalogNumber ?? "", margin + 50, yPos, { align: "right" });
-      doc.text(`${item.quantity}`, margin + 75, yPos, { align: "right" });
-      doc.text(`${Number(item.unitPrice).toFixed(2)} KM`, margin + 95, yPos, { align: "right" });
-      
-      if (discountPercent > 0) {
-        doc.setTextColor(0, 128, 0);
-        doc.text(`${discountPercent.toFixed(2)}%`, margin + 120, yPos, { align: "right" });
-        doc.setTextColor(0, 0, 0);
-      } else {
-        doc.text("-", margin + 120, yPos, { align: "right" });
-      }
-      
-      doc.text(`${finalTotal.toFixed(2)} KM`, margin + 150, yPos, { align: "right" });
-
-      yPos += item.product.sku ? 10 : 7;
-    });
-
-    yPos += 5;
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    
-    if (order.note) {
-      yPos += 10;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("Napomena komercijaliste:", margin, yPos);
-      yPos += 7;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const splitNote = doc.splitTextToSize(order.note, contentWidth);
-      splitNote.forEach((line: string) => {
-        doc.text(line, margin, yPos);
-        yPos += 5;
-      });
-      yPos += 5;
-    }
-    
-    yPos += 5;
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 8;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("UKUPNO:", margin + 120, yPos);
-    doc.text(`${Number(order.totalAmount).toFixed(2)} KM`, margin + 150, yPos, { align: "right" });
-
-    doc.save(`narudzba-${order.orderNumber}.pdf`);
+    window.print();
   };
 
   if (loading || !order) {
@@ -231,12 +115,15 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
             onClick={downloadPDF}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
-            Download PDF
+            PDF
           </button>
         </div>
       </div>
 
-      <div className="invoice-container rounded-2xl border border-slate-200 bg-white shadow-sm print:border-none print:shadow-none print:rounded-none">
+      <div
+        ref={invoiceRef}
+        className="invoice-container rounded-2xl border border-slate-200 bg-white shadow-sm print:border-none print:shadow-none print:rounded-none"
+      >
         <div className="border-b border-slate-100 px-8 py-6 print:px-4 print:py-3">
           <div className="flex items-start justify-between">
             <div>
@@ -307,8 +194,17 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
         </div>
 
         <div className="px-8 py-6 print:px-2 print:py-2">
-          <div className="overflow-x-auto">
-            <table className="min-w-full print:text-xs">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="min-w-full print:text-xs invoice-table">
+              <colgroup>
+                <col style={{ width: "4%" }} />
+                <col style={{ width: "50%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "12%" }} />
+              </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 print:border-b-2">
                   <th className="px-6 pb-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 print:px-2 print:pb-1 print:text-[10px]">
@@ -344,21 +240,21 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
                   return (
                     <tr key={item.id} className="transition hover:bg-slate-50/50 print:hover:bg-transparent print:border-b print:border-slate-200">
                       <td className="px-6 py-4 text-sm font-medium text-slate-600 print:px-2 print:py-1 print:text-[10px]">{i + 1}</td>
-                      <td className="px-6 py-4 print:px-2 print:py-1">
-                        <div className="text-sm font-semibold text-slate-900 print:text-[10px] print:font-medium">
+                      <td className="px-6 py-4 print:px-2 print:py-1 align-top">
+                        <div className="text-sm font-semibold text-slate-900 print:text-[10px] print:font-medium break-words">
                           {item.product.name}
                         </div>
                         {item.product.sku && (
                           <div className="mt-0.5 text-xs text-slate-500 print:text-[8px] print:mt-0">{item.product.sku}</div>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-left text-sm text-slate-900 print:px-2 print:py-1 print:text-[10px]">
+                      <td className="px-6 py-4 text-left text-sm text-slate-900 print:px-2 print:py-1 print:text-[10px] whitespace-normal break-words">
                         {item.product.catalogNumber ?? ""}
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-slate-900 print:px-2 print:py-1 print:text-[10px]">
                         {item.quantity}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm text-slate-600 print:px-2 print:py-1 print:text-[10px]">
+                      <td className="px-6 py-4 text-right text-sm text-slate-600 print:px-2 print:py-1 print:text-[10px] whitespace-nowrap">
                         {Number(item.unitPrice).toFixed(2)} KM
                       </td>
                       <td className="px-6 py-4 text-right text-sm text-slate-600 print:px-2 print:py-1 print:text-[10px]">
@@ -370,7 +266,7 @@ export default function CommercialOrderDetailPage({ params }: { params: Promise<
                           <span className="text-slate-400">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm font-semibold text-slate-900 print:px-2 print:py-1 print:text-[10px]">
+                      <td className="px-6 py-4 text-right text-sm font-semibold text-slate-900 print:px-2 print:py-1 print:text-[10px] whitespace-nowrap">
                         {finalTotal.toFixed(2)} KM
                         {discountPercent > 0 && (
                           <div className="mt-0.5 text-xs font-normal text-slate-400 line-through print:hidden">

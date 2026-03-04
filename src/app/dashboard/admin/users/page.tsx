@@ -13,6 +13,8 @@ type User = {
   role: string;
   createdAt: string;
   canAccessDoctorVisits?: boolean;
+  attendoEmployeeId?: string | null;
+  nexDeviceId?: string | null;
 };
 
 type FormState = {
@@ -22,6 +24,8 @@ type FormState = {
   password: string;
   role: string;
   canAccessDoctorVisits?: boolean;
+  attendoEmployeeId?: string;
+  nexDeviceId?: string;
 };
 
 export default function AdminUsersPage() {
@@ -40,7 +44,10 @@ export default function AdminUsersPage() {
     password: "",
     role: "COMMERCIAL",
     canAccessDoctorVisits: false,
+    attendoEmployeeId: "",
+    nexDeviceId: "",
   });
+  const [nexDevices, setNexDevices] = useState<Array<{ deviceId: string; deviceName: string }>>([]);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim() && !roleFilter) return users;
@@ -75,6 +82,8 @@ export default function AdminUsersPage() {
       password: "",
       role: "COMMERCIAL",
       canAccessDoctorVisits: false,
+      attendoEmployeeId: "",
+      nexDeviceId: "",
     });
     setModalOpen(true);
   };
@@ -88,8 +97,14 @@ export default function AdminUsersPage() {
       password: "",
       role: user.role,
       canAccessDoctorVisits: user.canAccessDoctorVisits || false,
+      attendoEmployeeId: user.attendoEmployeeId ?? "",
+      nexDeviceId: user.nexDeviceId ?? "",
     });
     setModalOpen(true);
+    fetch("/api/gps/devices")
+      .then((r) => r.json())
+      .then((d) => setNexDevices(d?.deviceList ?? []))
+      .catch(() => setNexDevices([]));
   };
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -114,7 +129,9 @@ export default function AdminUsersPage() {
             email: form.email, 
             role: form.role, 
             password: form.password || undefined,
-            canAccessDoctorVisits: form.canAccessDoctorVisits || false
+            canAccessDoctorVisits: form.canAccessDoctorVisits || false,
+            attendoEmployeeId: form.attendoEmployeeId || null,
+            nexDeviceId: form.nexDeviceId || null,
           }
         : { 
             name: form.name, 
@@ -369,21 +386,62 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
                 {form.role === "COMMERCIAL" && (
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={form.canAccessDoctorVisits || false}
-                        onChange={(e) =>
-                          setForm({ ...form, canAccessDoctorVisits: e.target.checked })
-                        }
-                        className="rounded border-slate-300"
-                      />
-                      <span className="text-sm font-medium text-slate-600">
-                        Dozvoli pristup posjetama doktora
-                      </span>
-                    </label>
-                  </div>
+                  <>
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={form.canAccessDoctorVisits || false}
+                          onChange={(e) =>
+                            setForm({ ...form, canAccessDoctorVisits: e.target.checked })
+                          }
+                          className="rounded border-slate-300"
+                        />
+                        <span className="text-sm font-medium text-slate-600">
+                          Dozvoli pristup posjetama doktora
+                        </span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          Attendo ID zaposlenika
+                        </label>
+                        <input
+                          name="attendoEmployeeId"
+                          type="text"
+                          placeholder="npr. 12345"
+                          value={form.attendoEmployeeId ?? ""}
+                          onChange={onChange}
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+                        />
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          ID zaposlenika u Attendo sustavu za prisustvo
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-slate-600">
+                          NEX GPS uređaj (vozilo)
+                        </label>
+                        <select
+                          name="nexDeviceId"
+                          value={form.nexDeviceId ?? ""}
+                          onChange={onChange}
+                          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
+                        >
+                          <option value="">— Nije mapirano</option>
+                          {nexDevices.map((d) => (
+                            <option key={d.deviceId} value={d.deviceId}>
+                              {d.deviceName} ({d.deviceId})
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          Vozilo za GPS praćenje
+                        </p>
+                      </div>
+                    </div>
+                  </>
                 )}
                 <div className="flex justify-end gap-2 pt-2">
                   <button

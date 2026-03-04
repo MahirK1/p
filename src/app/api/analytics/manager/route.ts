@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
 
   const from = new Date(year, month - 1, 1);
   const to = new Date(year, month, 0, 23, 59, 59);
+  // Prošireni period za sparivanje posjeta s narudžbama (7 dana nakon mjeseca - za posjete s kraja mjeseca)
+  const toExtended = new Date(to);
+  toExtended.setDate(toExtended.getDate() + 7);
+  toExtended.setHours(23, 59, 59, 999);
 
   // Prethodni period za poređenje
   const prevFrom = new Date(year, month - 2, 1);
@@ -28,7 +32,7 @@ export async function GET(req: NextRequest) {
   // Filter za komercijalistu
   const commercialFilter = commercialId ? { commercialId } : {};
 
-  // Narudžbe - trenutni period
+  // Narudžbe - trenutni period (za prodaju, brojeve itd.)
   const orders = await prisma.order.findMany({
     where: {
       createdAt: { gte: from, lte: to },
@@ -54,6 +58,19 @@ export async function GET(req: NextRequest) {
           scheduledAt: true,
         },
       },
+    },
+  });
+
+  // Narudžbe za sparivanje s posjetama (prošireni period: +7 dana) - za konverziju/visitsWithOrders
+  const ordersForVisitMatching = await prisma.order.findMany({
+    where: {
+      createdAt: { gte: from, lte: toExtended },
+      status: { in: ["APPROVED", "COMPLETED"] },
+      ...commercialFilter,
+    },
+    include: {
+      client: { select: { id: true, name: true } },
+      commercial: true,
     },
   });
 
@@ -241,35 +258,47 @@ export async function GET(req: NextRequest) {
     salesByCommercialMap.set(key, existing);
   }
 
-  // Statistike posjeta po komercijalisti
+  // Statistike posjeta po komercijalisti (7-dnevni algoritam: narudžba istog klijenta u roku 7 dana nakon posjete)
   for (const visit of visits) {
     const existing = salesByCommercialMap.get(visit.commercialId);
     if (existing) {
       existing.visitsCount += 1;
       if (visit.status === "DONE") {
         existing.visitsDone += 1;
-      }
-      if (visit.orders.length > 0) {
-        existing.visitsWithOrders += 1;
+        const visitDate = new Date(visit.scheduledAt);
+        const checkUntil = new Date(visitDate);
+        checkUntil.setDate(checkUntil.getDate() + 7);
+        const hasOrder = ordersForVisitMatching.some((o) => {
+          const orderDate = new Date(o.createdAt);
+          return o.clientId === visit.clientId && orderDate >= visitDate && orderDate <= checkUntil;
+        });
+        if (hasOrder) existing.visitsWithOrders += 1;
       }
     }
   }
 
-  // Prosječno vrijeme između posjete i narudžbe
-  for (const order of orders) {
-    if (order.visit) {
-      const existing = salesByCommercialMap.get(order.commercialId);
-      if (existing) {
-        const daysDiff =
-          (new Date(order.createdAt).getTime() -
-            new Date(order.visit.scheduledAt).getTime()) /
-          (1000 * 60 * 60 * 24);
-        const currentAvg = existing.avgDaysToOrder;
-        const count = existing.ordersCount;
-        existing.avgDaysToOrder = currentAvg === 0 
-          ? daysDiff 
-          : (currentAvg * (count - 1) + daysDiff) / count;
-      }
+  // Prosječno vrijeme između posjete i narudžbe (7-dnevni algoritam ili visitId)
+  const daysToOrderByCommercial = new Map<string, number[]>();
+  for (const visit of visits) {
+    if (visit.status !== "DONE") continue;
+    const visitDate = new Date(visit.scheduledAt);
+    const checkUntil = new Date(visitDate);
+    checkUntil.setDate(checkUntil.getDate() + 7);
+    const matchingOrder = ordersForVisitMatching.find((o) => {
+      const orderDate = new Date(o.createdAt);
+      return o.clientId === visit.clientId && orderDate >= visitDate && orderDate <= checkUntil;
+    });
+    if (matchingOrder) {
+      const days = (new Date(matchingOrder.createdAt).getTime() - visitDate.getTime()) / (1000 * 60 * 60 * 24);
+      const arr = daysToOrderByCommercial.get(visit.commercialId) ?? [];
+      arr.push(days);
+      daysToOrderByCommercial.set(visit.commercialId, arr);
+    }
+  }
+  for (const [comId, daysArr] of daysToOrderByCommercial) {
+    const existing = salesByCommercialMap.get(comId);
+    if (existing && daysArr.length > 0) {
+      existing.avgDaysToOrder = daysArr.reduce((a, b) => a + b, 0) / daysArr.length;
     }
   }
 
@@ -327,8 +356,18 @@ export async function GET(req: NextRequest) {
   const visitsCanceled = visits.filter((v) => v.status === "CANCELED").length;
   const visitsTotal = visits.length;
 
-  // Konverzija posjeta u narudžbe
-  const visitsWithOrders = visits.filter((v) => v.orders.length > 0).length;
+  // Konverzija posjeta u narudžbe - algoritam 7 dana: narudžba istog klijenta u roku 7 dana nakon posjete
+  const visitHasOrderIn7Days = (v: { clientId: string; scheduledAt: Date | string; status: string }) => {
+    if (v.status !== "DONE") return false;
+    const visitDate = new Date(v.scheduledAt);
+    const checkUntil = new Date(visitDate);
+    checkUntil.setDate(checkUntil.getDate() + 7);
+    return ordersForVisitMatching.some((o) => {
+      const orderDate = new Date(o.createdAt);
+      return o.clientId === v.clientId && orderDate >= visitDate && orderDate <= checkUntil;
+    });
+  };
+  const visitsWithOrders = visits.filter((v) => visitHasOrderIn7Days(v)).length;
   const conversionRate =
     visitsDone > 0 ? (visitsWithOrders / visitsDone) * 100 : 0;
 

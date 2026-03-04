@@ -561,8 +561,8 @@ export default function ManagerDashboardPage() {
               Aktivnost po danima u sedmici
             </h2>
             <div className="space-y-3">
-              {data.salesByWeekday.map((d) => (
-                <div key={d.day}>
+              {data.salesByWeekday.map((d, idx) => (
+                <div key={`weekday-${d.day}-${idx}`}>
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="font-medium text-slate-800">
                       {weekdayNames[d.day]}
@@ -619,9 +619,9 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedData.map((com) => (
+                    {paginatedData.map((com, idx) => (
                       <tr
-                        key={com.commercialId}
+                        key={com.commercialId ? `${com.commercialId}-${idx}` : `perf-${idx}`}
                         className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
                         onClick={() =>
                           router.push(
@@ -686,9 +686,9 @@ export default function ManagerDashboardPage() {
 
               {/* Mobile card view */}
               <div className="md:hidden space-y-3 p-4">
-                {paginatedData.map((com) => (
+                {paginatedData.map((com, idx) => (
                   <div
-                    key={com.commercialId}
+                    key={com.commercialId ? `${com.commercialId}-${idx}` : `perf-${idx}`}
                     onClick={() =>
                       router.push(
                         `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
@@ -790,9 +790,9 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedCommercials.map((com) => (
+                  {paginatedCommercials.map((com, idx) => (
                     <tr
-                      key={com.commercialId}
+                      key={com.commercialId ? `${com.commercialId}-${idx}` : `comm-${idx}`}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
                       onClick={() =>
                         router.push(
@@ -837,9 +837,9 @@ export default function ManagerDashboardPage() {
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {paginatedCommercials.map((com) => (
+              {paginatedCommercials.map((com, idx) => (
                 <div
-                  key={com.commercialId}
+                  key={com.commercialId ? `${com.commercialId}-${idx}` : `comm-${idx}`}
                   onClick={() =>
                     router.push(
                       `/dashboard/manager/commercials/${com.commercialId}?year=${selectedYear}&month=${selectedMonth}`
@@ -1064,9 +1064,9 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedProducts.map((product) => (
+                  {paginatedProducts.map((product, idx) => (
                     <tr
-                      key={product.productId}
+                      key={product.productId ? `${product.productId}-${idx}` : `prod-${idx}`}
                       className="border-t border-slate-100 hover:bg-slate-50 transition"
                     >
                       <td className="px-4 py-3 font-medium text-slate-800">
@@ -1100,9 +1100,9 @@ export default function ManagerDashboardPage() {
 
             {/* Mobile card view */}
             <div className="md:hidden space-y-3 p-4">
-              {paginatedProducts.map((product) => (
+              {paginatedProducts.map((product, idx) => (
                 <div
-                  key={product.productId}
+                  key={product.productId ? `${product.productId}-${idx}` : `prod-${idx}`}
                   className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
                 >
                   <div className="font-medium text-slate-800 mb-1">
@@ -1203,9 +1203,9 @@ export default function ManagerDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedClients.map((client) => (
+                  {paginatedClients.map((client, idx) => (
                     <tr
-                      key={client.clientId}
+                      key={client.clientId ? `${client.clientId}-${idx}` : `client-${idx}`}
                       className="border-t border-slate-100 hover:bg-slate-50 transition cursor-pointer"
                       onClick={() =>
                         router.push(`/dashboard/manager/clients/${client.clientId}`)
@@ -1251,9 +1251,9 @@ export default function ManagerDashboardPage() {
                   <LoadingSpinner size="md" />
                 </div>
               ) : (
-                paginatedClients.map((client) => (
+                paginatedClients.map((client, idx) => (
                   <div
-                    key={client.clientId}
+                    key={client.clientId ? `${client.clientId}-${idx}` : `client-${idx}`}
                     onClick={() =>
                       router.push(`/dashboard/manager/clients/${client.clientId}`)
                     }
@@ -1465,9 +1465,9 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedVisits.map((visit) => (
+                    {paginatedVisits.map((visit, idx) => (
                       <tr
-                        key={visit.visitId}
+                        key={visit.visitId ? `${visit.visitId}-${idx}` : `visit-${idx}`}
                         className="border-t border-slate-100 hover:bg-slate-50 transition"
                       >
                         <td className="px-4 py-3 font-medium text-slate-800">
@@ -1501,9 +1501,9 @@ export default function ManagerDashboardPage() {
               )}
               
               <div className="md:hidden space-y-3 p-4">
-                {paginatedVisits.map((visit) => (
+                {paginatedVisits.map((visit, idx) => (
                   <div
-                    key={visit.visitId}
+                    key={visit.visitId ? `${visit.visitId}-${idx}` : `visit-${idx}`}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
                   >
                     <div className="font-medium text-slate-800">{visit.clientName}</div>
@@ -1571,8 +1571,8 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {paginatedBranches.map((branch) => (
-                      <tr key={branch.branchId} className="hover:bg-slate-50">
+                    {paginatedBranches.map((branch, idx) => (
+                      <tr key={branch.branchId ? `${branch.branchId}-${idx}` : `branch-${idx}`} className="hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-slate-800">{branch.branchName}</td>
                         <td className="px-4 py-3 text-slate-600">{branch.clientName}</td>
                         <td className="px-4 py-3 text-right text-slate-600">
@@ -1609,9 +1609,9 @@ export default function ManagerDashboardPage() {
               )}
               
               <div className="md:hidden space-y-3 p-4">
-                {paginatedBranches.map((branch) => (
+                {paginatedBranches.map((branch, idx) => (
                   <div
-                    key={branch.branchId}
+                    key={branch.branchId ? `${branch.branchId}-${idx}` : `branch-${idx}`}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
                   >
                     <div className="font-medium text-slate-800">{branch.branchName}</div>
@@ -1685,9 +1685,9 @@ export default function ManagerDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedClv.map((client) => (
+                    {paginatedClv.map((client, idx) => (
                       <tr
-                        key={client.clientId}
+                        key={client.clientId ? `${client.clientId}-${idx}` : `clv-${idx}`}
                         className="border-t border-slate-100 hover:bg-slate-50 transition"
                       >
                         <td className="px-4 py-3 font-medium text-slate-800">
@@ -1725,9 +1725,9 @@ export default function ManagerDashboardPage() {
               )}
               
               <div className="md:hidden space-y-3 p-4">
-                {paginatedClv.map((client) => (
+                {paginatedClv.map((client, idx) => (
                   <div
-                    key={client.clientId}
+                    key={client.clientId ? `${client.clientId}-${idx}` : `clv-${idx}`}
                     className="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
                   >
                     <div className="font-medium text-slate-800">{client.client}</div>
