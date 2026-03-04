@@ -313,7 +313,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
         {/* Tabela sa stavkama - KOMPAKTNIJI ZA PRINT */}
         <div className="px-8 py-6 print:px-2 print:py-2">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="min-w-full print:text-xs">
               <thead>
                 <tr className="border-b border-slate-200 print:border-b-2">

@@ -98,10 +98,26 @@
 @media print {
   html, body {
     overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   body {
     margin: 12mm;
+  }
+
+  /* Reset layout constraints - sprječava prazne stranice i omogućava višestranični print */
+  [style*="100dvh"],
+  [style*="100vh"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   .invoice-container {
@@ -112,6 +128,7 @@
     page-break-inside: auto;
   }
 
+  /* Red ne smije biti prekinut - prelazi na sljedeću stranicu cijeli */
   .invoice-container tr {
     page-break-inside: avoid;
     break-inside: avoid;
@@ -123,6 +140,11 @@
 
   .invoice-container tfoot {
     display: table-footer-group;
+  }
+
+  /* Omogući da tabela prelazi preko stranica - bez clippinga */
+  .invoice-container [class*="overflow"] {
+    overflow: visible !important;
   }
 }
 @layer base {
