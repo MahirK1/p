@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "cron:sync-field-tracking": "tsx src/scripts/sync-field-tracking.ts",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "tsx server.ts",
