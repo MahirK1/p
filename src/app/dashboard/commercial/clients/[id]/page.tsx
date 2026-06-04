@@ -9,6 +9,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
 import { Pagination } from "@/components/ui/Pagination";
 import { PencilIcon, PlusIcon } from "@heroicons/react/24/outline";
+import { ClientAgreedTerms } from "@/components/clients/ClientAgreedTerms";
+import { ClientHlSales } from "@/components/clients/ClientHlSales";
 
 type ClientDetail = {
   id: string;
@@ -19,6 +21,9 @@ type ClientDetail = {
   email?: string | null;
   contactPerson?: string | null;
   note?: string | null;
+  agreedTerms?: string | null;
+  agreedTermsUpdatedAt?: string | null;
+  agreedTermsUpdatedBy?: { name: string } | null;
   branches: Array<{
     id: string;
     name: string;
@@ -406,6 +411,19 @@ export default function CommercialClientDetailPage({
           )}
         </div>
       </div>
+
+      <ClientAgreedTerms
+        clientId={client.id}
+        agreedTerms={client.agreedTerms}
+        agreedTermsUpdatedAt={client.agreedTermsUpdatedAt}
+        agreedTermsUpdatedBy={client.agreedTermsUpdatedBy}
+        onSaved={loadClient}
+      />
+
+      <ClientHlSales
+        clientId={client.id}
+        hlSalesPath="/dashboard/commercial/hl-sales"
+      />
 
       {/* Podružnice */}
       <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">

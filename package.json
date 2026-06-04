@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "cron:sync-field-tracking": "tsx src/scripts/sync-field-tracking.ts",
+    "import:hl-sales": "tsx src/scripts/import-hl-sales.ts",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "tsx server.ts",
@@ -36,7 +37,8 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "tsx": "^4.7.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

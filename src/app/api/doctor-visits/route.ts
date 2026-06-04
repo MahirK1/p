@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { sendPushNotificationToUser } from "@/lib/push-notifications";
+import { notifyUser, notifyAllManagers } from "@/lib/user-notifications";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const commercialId = searchParams.get("commercialId");
+  const institution = searchParams.get("institution")?.trim();
+  const doctor = searchParams.get("doctor")?.trim();
   const page = Number(searchParams.get("page") || "1");
   const limit = Number(searchParams.get("limit") || "50");
   const skip = (page - 1) * limit;
@@ -35,6 +37,25 @@ export async function GET(req: NextRequest) {
       gte: new Date(from),
       lte: new Date(to),
     };
+  }
+
+  if (institution) {
+    where.institution = { contains: institution, mode: "insensitive" };
+  }
+
+  if (doctor) {
+    const tokens = doctor.split(/\s+/).filter(Boolean);
+    if (tokens.length > 0) {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : []),
+        ...tokens.map((token) => ({
+          OR: [
+            { firstName: { contains: token, mode: "insensitive" } },
+            { lastName: { contains: token, mode: "insensitive" } },
+          ],
+        })),
+      ];
+    }
   }
 
   const total = await prisma.doctorVisit.count({ where });
@@ -194,14 +215,45 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
-  if (canSetManagerComment && effectiveManagerComment && String(effectiveManagerComment).trim() && doctorVisit.commercialId) {
-    const dateStr = doctorVisit.scheduledAt ? new Date(doctorVisit.scheduledAt).toLocaleDateString("bs-BA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-    await sendPushNotificationToUser(
-      doctorVisit.commercialId,
-      "Komentar na posjeti doktora",
-      `Manager vam je ostavio komentar na posjeti doktora (${dateStr}).`,
-      { url: "/dashboard/commercial/doctor-visits" }
-    );
+  const commentChanged =
+    canSetManagerComment &&
+    managerComment !== undefined &&
+    String(effectiveManagerComment ?? "").trim() !==
+      String(existingVisit.managerComment ?? "").trim();
+
+  if (commentChanged && effectiveManagerComment?.trim()) {
+    const dateStr = doctorVisit.scheduledAt
+      ? new Date(doctorVisit.scheduledAt).toLocaleDateString("bs-BA", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+    const authorLabel =
+      user.role === "DIRECTOR"
+        ? "Direktor"
+        : user.role === "ADMIN"
+          ? "Administrator"
+          : "Manager";
+
+    if (doctorVisit.commercialId) {
+      await notifyUser(
+        doctorVisit.commercialId,
+        "Komentar na posjeti doktora",
+        `${authorLabel} vam je ostavio komentar na posjeti doktora (${dateStr}).`,
+        "/dashboard/commercial/doctor-visits"
+      );
+    }
+
+    if (user.role === "DIRECTOR") {
+      await notifyAllManagers(
+        "Komentar direktora na posjeti doktora",
+        `${authorLabel} je ostavio komentar na posjeti doktora (${dateStr}).`,
+        "/dashboard/manager/doctor-visits"
+      );
+    }
   }
 
   await logAudit(req, user, {

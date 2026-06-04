@@ -14,6 +14,8 @@ import {
   IdentificationIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { ClientAgreedTerms } from "@/components/clients/ClientAgreedTerms";
+import { ClientHlSales } from "@/components/clients/ClientHlSales";
 
 type ClientBranch = {
   id: string;
@@ -39,6 +41,9 @@ type Client = {
   email?: string | null;
   contactPerson?: string | null;
   note?: string | null;
+  agreedTerms?: string | null;
+  agreedTermsUpdatedAt?: string | null;
+  agreedTermsUpdatedBy?: { name: string } | null;
   branches?: ClientBranch[];
 };
 
@@ -48,10 +53,15 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadClient = async () => {
+    const res = await fetch(`/api/clients/${id}`);
+    if (res.ok) setClient(await res.json());
+  };
+
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const res = await fetch(`/api/clients?id=${id}`);
+      const res = await fetch(`/api/clients/${id}`);
       if (!res.ok) {
         notFound();
         return;
@@ -93,8 +103,11 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Podaci o klijentu */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-6">Osnovni podaci</h2>
+      <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-slate-900">Osnovni podaci</h2>
+        </div>
+        <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Adresa */}
           {client.address && (
@@ -181,18 +194,32 @@ export default function ClientDetailPage({ params }: { params: Promise<{ id: str
             </div>
           )}
         </div>
+        </div>
       </div>
+
+      <ClientAgreedTerms
+        clientId={client.id}
+        agreedTerms={client.agreedTerms}
+        agreedTermsUpdatedAt={client.agreedTermsUpdatedAt}
+        agreedTermsUpdatedBy={client.agreedTermsUpdatedBy}
+        onSaved={loadClient}
+      />
+
+      <ClientHlSales
+        clientId={client.id}
+        hlSalesPath="/dashboard/manager/hl-sales"
+      />
 
       {/* Podružnice */}
       {client.branches && client.branches.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-6">
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-6 py-4 flex items-center gap-2">
             <BuildingOfficeIcon className="w-5 h-5 text-slate-600" />
             <h2 className="text-lg font-semibold text-slate-900">
               Podružnice ({client.branches.length})
             </h2>
           </div>
-          <div className="space-y-4">
+          <div className="p-6 space-y-4">
             {client.branches.map((branch) => (
               <div
                 key={branch.id}

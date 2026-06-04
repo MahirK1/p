@@ -45,6 +45,10 @@ export default function DirectorDoctorVisitsPage() {
     return d.toISOString().slice(0, 10);
   });
   const [filterCommercialId, setFilterCommercialId] = useState("");
+  const [filterInstitution, setFilterInstitution] = useState("");
+  const [filterDoctor, setFilterDoctor] = useState("");
+  const [debouncedInstitution, setDebouncedInstitution] = useState("");
+  const [debouncedDoctor, setDebouncedDoctor] = useState("");
 
   const [form, setForm] = useState({
     commercialId: "",
@@ -76,9 +80,14 @@ export default function DirectorDoctorVisitsPage() {
       const from = new Date(filterDateFrom);
       const to = new Date(filterDateTo);
       to.setHours(23, 59, 59, 999);
-      let url = `/api/doctor-visits?from=${from.toISOString()}&to=${to.toISOString()}`;
-      if (filterCommercialId) url += `&commercialId=${filterCommercialId}`;
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+      if (filterCommercialId) params.set("commercialId", filterCommercialId);
+      if (debouncedInstitution) params.set("institution", debouncedInstitution);
+      if (debouncedDoctor) params.set("doctor", debouncedDoctor);
+      const res = await fetch(`/api/doctor-visits?${params}`);
       const data = await res.json();
       setVisits(data.doctorVisits ?? (Array.isArray(data) ? data : []));
     } catch (error) {
@@ -93,8 +102,18 @@ export default function DirectorDoctorVisitsPage() {
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedInstitution(filterInstitution.trim()), 400);
+    return () => clearTimeout(t);
+  }, [filterInstitution]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDoctor(filterDoctor.trim()), 400);
+    return () => clearTimeout(t);
+  }, [filterDoctor]);
+
+  useEffect(() => {
     load();
-  }, [filterDateFrom, filterDateTo, filterCommercialId]);
+  }, [filterDateFrom, filterDateTo, filterCommercialId, debouncedInstitution, debouncedDoctor]);
 
   const openCreateModal = () => {
     setEditingVisit(null);
@@ -272,6 +291,20 @@ export default function DirectorDoctorVisitsPage() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <input
+              type="text"
+              value={filterInstitution}
+              onChange={(e) => setFilterInstitution(e.target.value)}
+              placeholder="Ustanova..."
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none min-w-[160px]"
+            />
+            <input
+              type="text"
+              value={filterDoctor}
+              onChange={(e) => setFilterDoctor(e.target.value)}
+              placeholder="Doktor (ime/prezime)..."
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none min-w-[180px]"
+            />
           </div>
         </div>
 
@@ -281,7 +314,7 @@ export default function DirectorDoctorVisitsPage() {
           </div>
         ) : visits.length === 0 ? (
           <div className="p-6 text-sm text-slate-500">
-            Nema posjeta doktora u ovom periodu.
+            Nema posjeta doktora za odabrane filtere.
           </div>
         ) : (
           <div className="overflow-x-auto">

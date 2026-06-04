@@ -51,6 +51,8 @@ model User {
   auditLogs      AuditLog[]
   doctorVisits    DoctorVisit[]
   canAccessDoctorVisits Boolean @default(false)
+  notifications   Notification[]
+  clientAgreedTermsUpdates Client[] @relation("ClientAgreedTermsUpdatedBy")
 }
 
 model Client {
@@ -67,11 +69,60 @@ model Client {
   email         String?        // Partner.EMAIL
   contactPerson String?        // Kontakt osoba
   note          String?        // Partner.KOMENTAR
+  agreedTerms   String?        // Dogovoreni uslovi (unosi komercijalista)
+  agreedTermsUpdatedAt DateTime?
+  agreedTermsUpdatedById String?
+  agreedTermsUpdatedBy User?  @relation("ClientAgreedTermsUpdatedBy", fields: [agreedTermsUpdatedById], references: [id])
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   branches      ClientBranch[]
   orders        Order[]
   visits        Visit[]
+  hlPartnerSales HlPartnerSale[]
+}
+
+/// Uvoz rekapitulacije prodaje (Hercegovina lijek) po partnerima
+model HlSalesImport {
+  id           String          @id @default(cuid())
+  periodFrom   DateTime
+  periodTo     DateTime
+  grandTotal   Decimal         @db.Decimal(14, 2)
+  grandQuantity Decimal        @db.Decimal(14, 2)
+  fileName     String?
+  importedAt   DateTime        @default(now())
+  partnerSales HlPartnerSale[]
+
+  @@unique([periodFrom, periodTo])
+  @@map("hl_sales_imports")
+}
+
+model HlPartnerSale {
+  id            String              @id @default(cuid())
+  importId      String
+  import        HlSalesImport       @relation(fields: [importId], references: [id], onDelete: Cascade)
+  partnerName   String
+  clientId      String?
+  client        Client?             @relation(fields: [clientId], references: [id])
+  totalValue    Decimal             @db.Decimal(14, 2)
+  totalQuantity Decimal             @db.Decimal(14, 2)
+  items         HlPartnerSaleItem[]
+
+  @@index([importId])
+  @@index([clientId])
+  @@map("hl_partner_sales")
+}
+
+model HlPartnerSaleItem {
+  id            String        @id @default(cuid())
+  partnerSaleId String
+  partnerSale   HlPartnerSale @relation(fields: [partnerSaleId], references: [id], onDelete: Cascade)
+  lineNo        Int?
+  article       String
+  value         Decimal       @db.Decimal(14, 2)
+  quantity      Decimal       @db.Decimal(14, 2)
+
+  @@index([partnerSaleId])
+  @@map("hl_partner_sale_items")
 }
 
 model Brand {
@@ -354,4 +405,18 @@ model DoctorVisit {
   updatedAt      DateTime  @updatedAt
 
   @@map("doctor_visits")
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  url       String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
 }

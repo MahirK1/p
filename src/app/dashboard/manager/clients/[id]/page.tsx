@@ -9,6 +9,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
 import { Pagination } from "@/components/ui/Pagination";
 import { PencilIcon } from "@heroicons/react/24/outline";
+import { ClientAgreedTerms } from "@/components/clients/ClientAgreedTerms";
+import { ClientHlSales } from "@/components/clients/ClientHlSales";
 
 type ClientDetail = {
   id: string;
@@ -19,6 +21,9 @@ type ClientDetail = {
   email?: string | null;
   contactPerson?: string | null;
   note?: string | null;
+  agreedTerms?: string | null;
+  agreedTermsUpdatedAt?: string | null;
+  agreedTermsUpdatedBy?: { name: string } | null;
   branches: Array<{
     id: string;
     name: string;
@@ -265,11 +270,6 @@ export default function ManagerClientDetailPage({
     );
   }
 
-  if (!client) {
-    notFound();
-    return null;
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -335,6 +335,16 @@ export default function ManagerClientDetailPage({
           )}
         </div>
       </div>
+
+      <ClientAgreedTerms
+        clientId={client.id}
+        agreedTerms={client.agreedTerms}
+        agreedTermsUpdatedAt={client.agreedTermsUpdatedAt}
+        agreedTermsUpdatedBy={client.agreedTermsUpdatedBy}
+        onSaved={loadClient}
+      />
+
+      <ClientHlSales clientId={client.id} />
 
       {/* Podružnice */}
       {client.branches && client.branches.length > 0 && (

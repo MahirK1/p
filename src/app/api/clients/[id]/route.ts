@@ -67,6 +67,9 @@ export async function GET(
         },
         orderBy: { scheduledAt: "desc" },
       },
+      agreedTermsUpdatedBy: {
+        select: { id: true, name: true },
+      },
     },
   });
 

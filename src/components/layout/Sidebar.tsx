@@ -15,6 +15,7 @@ import {
   ArrowRightOnRectangleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  BellIcon,
 } from "@heroicons/react/24/outline";
 import { PushNotificationButton } from "@/components/ui/PushNotificationButton";
 
@@ -186,6 +187,15 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 <UsersIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Klijenti</span>}
               </Link>
+              <Link
+                href="/dashboard/commercial/hl-sales"
+                className={getLinkClass("/dashboard/commercial/hl-sales")}
+                onClick={handleLinkClick}
+                title={collapsed ? "HL prodaja" : undefined}
+              >
+                <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">HL prodaja</span>}
+              </Link>
               <Link 
                 href="/dashboard/commercial/orders" 
                 className={getLinkClass("/dashboard/commercial/orders")}
@@ -243,6 +253,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 {!collapsed && <span className="truncate">Chat</span>}
                 {!collapsed && chatBadge}
               </Link>
+
+              <Link
+                href="/dashboard/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/notifications")}
+                title={collapsed ? "Obavijesti" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti</span>}
+              </Link>
             </>
           )}
 
@@ -266,6 +286,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <UsersIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Klijenti</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/manager/hl-sales"
+                className={getLinkClass("/dashboard/manager/hl-sales")}
+                onClick={handleLinkClick}
+                title={collapsed ? "HL prodaja" : undefined}
+              >
+                <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">HL prodaja</span>}
               </Link>
 
               <Link 
@@ -325,6 +355,26 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 {!collapsed && <span className="truncate">Chat</span>}
                 {!collapsed && chatBadge}
               </Link>
+
+              <Link
+                href="/dashboard/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/notifications")}
+                title={collapsed ? "Obavijesti" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/manager/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/manager/notifications")}
+                title={collapsed ? "Obavijesti timu" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti timu</span>}
+              </Link>
             </>
           )}
 
@@ -355,6 +405,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 </span>
                 {!collapsed && <span className="truncate">Chat</span>}
                 {!collapsed && chatBadge}
+              </Link>
+
+              <Link
+                href="/dashboard/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/notifications")}
+                title={collapsed ? "Obavijesti" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti</span>}
               </Link>
             </>
           )}
@@ -391,6 +451,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               </Link>
 
               <Link
+                href="/dashboard/manager/hl-sales"
+                className={getLinkClass("/dashboard/manager/hl-sales")}
+                onClick={handleLinkClick}
+                title={collapsed ? "HL prodaja" : undefined}
+              >
+                <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">HL prodaja</span>}
+              </Link>
+
+              <Link
                 href="/dashboard/manager/field-tracking"
                 className={getLinkClass("/dashboard/manager/field-tracking")}
                 onClick={handleLinkClick}
@@ -398,6 +468,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <MapPinIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Praćenje terena</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/notifications")}
+                title={collapsed ? "Obavijesti" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti</span>}
               </Link>
             </>
           )}
@@ -454,6 +534,16 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
                 {!collapsed && <span className="truncate">Klijenti</span>}
               </Link>
 
+              <Link
+                href="/dashboard/manager/hl-sales"
+                className={getLinkClass("/dashboard/manager/hl-sales")}
+                onClick={handleLinkClick}
+                title={collapsed ? "HL prodaja" : undefined}
+              >
+                <ClipboardDocumentListIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">HL prodaja</span>}
+              </Link>
+
               <Link 
                 href="/dashboard/admin/audit-logs" 
                 className={getLinkClass("/dashboard/admin/audit-logs")}
@@ -472,6 +562,26 @@ export function Sidebar({ onLinkClick, collapsed = false, onToggleCollapse }: Si
               >
                 <MapPinIcon className="w-5 h-5 flex-shrink-0" />
                 {!collapsed && <span className="truncate">Praćenje terena</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/notifications")}
+                title={collapsed ? "Obavijesti" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Obavijesti</span>}
+              </Link>
+
+              <Link
+                href="/dashboard/admin/notifications"
+                onClick={handleLinkClick}
+                className={getLinkClass("/dashboard/admin/notifications")}
+                title={collapsed ? "Pošalji obavijest" : undefined}
+              >
+                <BellIcon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && <span className="truncate">Pošalji obavijest</span>}
               </Link>
             </>
           )}

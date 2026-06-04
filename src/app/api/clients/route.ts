@@ -153,7 +153,7 @@ export async function PUT(req: NextRequest) {
 
   const user = session.user as any;
   // Dozvoli COMMERCIAL, MANAGER i ADMIN da ažuriraju klijente
-  if (!["COMMERCIAL", "MANAGER", "ADMIN"].includes(user.role)) {
+  if (!["COMMERCIAL", "MANAGER", "ADMIN", "DIRECTOR"].includes(user.role)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -167,6 +167,7 @@ export async function PUT(req: NextRequest) {
     email,
     contactPerson,
     note,
+    agreedTerms,
   } = body;
 
   if (!id) {
@@ -188,22 +189,54 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  // Ažuriraj klijenta (ne mijenjaj erpId, matBroj, pdvBroj - to se sinkronizuje iz ERP)
+  const canEditAgreedTerms = ["COMMERCIAL", "MANAGER", "ADMIN"].includes(user.role);
+  const canEditFullProfile = ["MANAGER", "ADMIN"].includes(user.role);
+  const isCommercialOnly = user.role === "COMMERCIAL";
+
+  const updateData: Record<string, unknown> = {};
+
+  if (isCommercialOnly) {
+    if (agreedTerms !== undefined && canEditAgreedTerms) {
+      updateData.agreedTerms = agreedTerms?.trim() || null;
+      updateData.agreedTermsUpdatedAt = new Date();
+      updateData.agreedTermsUpdatedById = user.id;
+    }
+    if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
+    if (note !== undefined) updateData.note = note;
+  } else if (canEditFullProfile || user.role === "DIRECTOR") {
+    if (user.role !== "DIRECTOR") {
+      if (name !== undefined) updateData.name = name;
+      if (address !== undefined) updateData.address = address;
+      if (city !== undefined) updateData.city = city;
+      if (phone !== undefined) updateData.phone = phone;
+      if (email !== undefined) updateData.email = email;
+      if (contactPerson !== undefined) updateData.contactPerson = contactPerson;
+      if (note !== undefined) updateData.note = note;
+    }
+    if (agreedTerms !== undefined && canEditAgreedTerms) {
+      updateData.agreedTerms = agreedTerms?.trim() || null;
+      updateData.agreedTermsUpdatedAt = new Date();
+      updateData.agreedTermsUpdatedById = user.id;
+    }
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    const unchanged = await prisma.client.findUnique({
+      where: { id },
+      include: {
+        branches: { orderBy: { name: "asc" } },
+        agreedTermsUpdatedBy: { select: { id: true, name: true } },
+      },
+    });
+    return NextResponse.json(unchanged);
+  }
+
   const updatedClient = await prisma.client.update({
     where: { id },
-    data: {
-      name: name ?? existingClient.name,
-      address: address ?? existingClient.address,
-      city: city ?? existingClient.city,
-      phone: phone ?? existingClient.phone,
-      email: email ?? existingClient.email,
-      contactPerson: contactPerson ?? existingClient.contactPerson,
-      note: note ?? existingClient.note,
-    },
+    data: updateData,
     include: {
-      branches: {
-        orderBy: { name: "asc" },
-      },
+      branches: { orderBy: { name: "asc" } },
+      agreedTermsUpdatedBy: { select: { id: true, name: true } },
     },
   });
 

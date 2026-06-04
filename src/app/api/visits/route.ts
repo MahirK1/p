@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { authOptions } from "../auth/[...nextauth]/authOptions";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { sendPushNotificationToUser } from "@/lib/push-notifications";
+import { notifyUser, notifyAllManagers } from "@/lib/user-notifications";
 import { sendNewClientEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
@@ -239,20 +239,13 @@ export async function POST(req: NextRequest) {
       branchInfo = `\nPodružnice: ${branchNames}`;
     }
 
-    sendPushNotificationToUser(
+    notifyUser(
       targetCommercialId,
       "Nova posjeta",
-      `${visit.client.name} - ${formattedDate} u ${formattedTime}${branchInfo}${note ? `\n${note}` : ''}`,
-      {
-        tag: `visit-${visit.id}`,
-        url: `/dashboard/commercial/visits`,
-        data: {
-          visitId: visit.id,
-          type: 'visit',
-        },
-      }
+      `${visit.client.name} - ${formattedDate} u ${formattedTime}${branchInfo}${note ? `\n${note}` : ""}`,
+      "/dashboard/commercial/visits"
     ).catch((err) => {
-      console.error("Error sending push notification for visit:", err);
+      console.error("Error sending notification for visit:", err);
     });
   }
 
@@ -359,17 +352,46 @@ export async function PATCH(req: NextRequest) {
     },
   });
 
-  // Ako je manager/director/admin postavio komentar, pošalji push komercijalisti
-  if (canSetManagerComment && effectiveManagerComment && effectiveManagerComment.trim() && visit.commercialId) {
-    const commercialId = visit.commercialId;
+  const commentChanged =
+    canSetManagerComment &&
+    managerComment !== undefined &&
+    String(effectiveManagerComment ?? "").trim() !==
+      String(existingWithComment.managerComment ?? "").trim();
+
+  if (commentChanged && effectiveManagerComment?.trim()) {
     const clientName = visit.client?.name ?? "Klijent";
-    const dateStr = visit.scheduledAt ? new Date(visit.scheduledAt).toLocaleDateString("bs-BA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-    await sendPushNotificationToUser(
-      commercialId,
-      "Komentar na posjetu",
-      `Manager vam je ostavio komentar na posjetu: ${clientName} (${dateStr}).`,
-      { url: "/dashboard/commercial/visits" }
-    );
+    const dateStr = visit.scheduledAt
+      ? new Date(visit.scheduledAt).toLocaleDateString("bs-BA", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+    const authorLabel =
+      user.role === "DIRECTOR"
+        ? "Direktor"
+        : user.role === "ADMIN"
+          ? "Administrator"
+          : "Manager";
+
+    if (visit.commercialId) {
+      await notifyUser(
+        visit.commercialId,
+        "Komentar na posjetu",
+        `${authorLabel} vam je ostavio komentar na posjeti: ${clientName} (${dateStr}).`,
+        "/dashboard/commercial/visits"
+      );
+    }
+
+    if (user.role === "DIRECTOR") {
+      await notifyAllManagers(
+        "Komentar direktora na posjeti",
+        `${authorLabel} je ostavio komentar na posjeti: ${clientName} (${dateStr}).`,
+        "/dashboard/manager/visits"
+      );
+    }
   }
 
   await logAudit(req, user, {

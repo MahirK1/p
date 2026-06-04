@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
+import { NotificationBell } from "./NotificationBell";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 
 export function MobileSidebar() {
@@ -142,6 +143,7 @@ export function MobileSidebar() {
           </div>
           <span className="text-sm font-semibold text-slate-900">B2B Portal</span>
         </div>
+        <NotificationBell />
       </div>
     </>
   );
