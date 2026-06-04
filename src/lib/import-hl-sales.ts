@@ -19,6 +19,7 @@ function normalizeName(s: string): string {
 const MATCH_STOPWORDS = new Set([
   "apoteka",
   "apoteke",
+  "pharm",
   "pharma",
   "pharmacy",
   "pharmacies",
@@ -62,23 +63,42 @@ function nameTokens(norm: string): string[] {
   return norm.split(" ").filter((w) => w.length >= 3);
 }
 
+function coreTokens(norm: string): string[] {
+  return nameTokens(norm).filter((w) => !MATCH_STOPWORDS.has(w));
+}
+
+/**
+ * Fuzzy uparivanje samo kad imena dijele stvarni brand (npr. SUNCE), ne generike (pharm, novi grad).
+ */
 function tokenOverlapScore(normA: string, normB: string): number {
-  const tokensA = nameTokens(normA);
-  const tokensB = nameTokens(normB);
-  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+  const coreA = coreTokens(normA);
+  const coreB = coreTokens(normB);
+  if (coreA.length === 0 || coreB.length === 0) return 0;
 
-  const setB = new Set(tokensB);
-  const shared = tokensA.filter((t) => setB.has(t));
-  if (shared.length === 0) return 0;
-
-  // Samo "Novi Grad" / "Apoteka" itd. ne smiju upariti različite lance
-  const sharedCore = shared.filter((t) => !MATCH_STOPWORDS.has(t));
+  const setB = new Set(coreB);
+  const sharedCore = coreA.filter((t) => setB.has(t));
   if (sharedCore.length === 0) return 0;
 
-  const shorter = Math.min(tokensA.length, tokensB.length);
-  if (shared.length < 2 && shared.length < shorter) return 0;
+  const shorterCore = coreA.length <= coreB.length ? coreA : coreB;
+  const longerCore = coreA.length <= coreB.length ? coreB : coreA;
 
-  return sharedCore.length * 10 + sharedCore.join("").length;
+  // Sve distinktivne riječi kraćeg naziva moraju biti u dužem (npr. "Sunce" u "Apoteka Sunce")
+  const shorterInLonger = shorterCore.every((t) => longerCore.includes(t));
+  if (!shorterInLonger) return 0;
+
+  if (sharedCore.length >= 2) {
+    return sharedCore.length * 10 + sharedCore.join("").length;
+  }
+
+  // Jedna distinktivna riječ — samo ako je dovoljno duga i nije generička
+  if (sharedCore.length === 1 && shorterCore.length === 1) {
+    const token = sharedCore[0];
+    if (token.length >= 5) {
+      return 10 + token.length;
+    }
+  }
+
+  return 0;
 }
 
 type ClientForMatch = {
