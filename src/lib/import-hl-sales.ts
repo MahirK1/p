@@ -15,6 +15,72 @@ function normalizeName(s: string): string {
     .trim();
 }
 
+/** Generičke riječi i gradovi — same ne smiju same upariti različite apoteke */
+const MATCH_STOPWORDS = new Set([
+  "apoteka",
+  "apoteke",
+  "pharma",
+  "pharmacy",
+  "pharmacies",
+  "novi",
+  "grad",
+  "centar",
+  "center",
+  "shop",
+  "store",
+  "doo",
+  "d",
+  "o",
+  "i",
+  "bijeljina",
+  "sarajevo",
+  "mostar",
+  "tuzla",
+  "banja",
+  "luka",
+  "trebinje",
+  "prijedor",
+  "zenica",
+  "brcko",
+  "doboj",
+  "gorazde",
+  "livno",
+  "bugojno",
+  "zavidovici",
+  "tesanj",
+  "gradacac",
+  "travnik",
+  "konjic",
+  "visoko",
+  "kakanj",
+  "vogosca",
+  "ilidza",
+  "lukavac",
+]);
+
+function nameTokens(norm: string): string[] {
+  return norm.split(" ").filter((w) => w.length >= 3);
+}
+
+function tokenOverlapScore(normA: string, normB: string): number {
+  const tokensA = nameTokens(normA);
+  const tokensB = nameTokens(normB);
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
+
+  const setB = new Set(tokensB);
+  const shared = tokensA.filter((t) => setB.has(t));
+  if (shared.length === 0) return 0;
+
+  // Samo "Novi Grad" / "Apoteka" itd. ne smiju upariti različite lance
+  const sharedCore = shared.filter((t) => !MATCH_STOPWORDS.has(t));
+  if (sharedCore.length === 0) return 0;
+
+  const shorter = Math.min(tokensA.length, tokensB.length);
+  if (shared.length < 2 && shared.length < shorter) return 0;
+
+  return sharedCore.length * 10 + sharedCore.join("").length;
+}
+
 type ClientForMatch = {
   id: string;
   name: string;
@@ -39,16 +105,13 @@ export function matchClientId(
     for (const cand of candidates) {
       const normCand = normalizeName(cand);
       if (!normCand) continue;
+
       if (normPartner === normCand) return client.id;
-      if (
-        normPartner.includes(normCand) ||
-        normCand.includes(normPartner)
-      ) {
-        const score = Math.min(normPartner.length, normCand.length);
-        if (score > bestScore) {
-          bestScore = score;
-          bestId = client.id;
-        }
+
+      const score = tokenOverlapScore(normPartner, normCand);
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = client.id;
       }
     }
   }
